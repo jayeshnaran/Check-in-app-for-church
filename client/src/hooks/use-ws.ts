@@ -24,7 +24,7 @@ export function useWebSocket() {
         try {
           const message: WsMessage = JSON.parse(event.data);
           
-          if (message.type === WS_EVENTS.UPDATE) {
+          if (message.type === 'update') {
             // Invalidate all family queries to trigger a refetch
             queryClient.invalidateQueries({ queryKey: ["/api/families"] });
           }

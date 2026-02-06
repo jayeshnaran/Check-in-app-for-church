@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson } from "@/hooks/use-families";
 import { useWebSocket } from "@/hooks/use-ws";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   // Connect WS
@@ -43,14 +44,14 @@ export default function Dashboard() {
 
   const handleAddFamily = () => {
     createFamily.mutate(
-      { isVisitor: false }, 
+      { status: 'newcomer' }, 
       {
         onSuccess: (newFamily) => {
           // Immediately add a default person to the new family
           createPerson.mutate({
             familyId: newFamily.id,
             type: 'man',
-            isVisitor: false
+            status: 'newcomer'
           });
           toast({ title: "Family created", description: "Added new family group" });
         }
@@ -62,19 +63,21 @@ export default function Dashboard() {
     createPerson.mutate({
       familyId,
       type: 'man',
-      isVisitor: false
+      status: 'newcomer'
     });
   };
 
-  const filteredFamilies = families?.filter(f => {
-    const searchLower = search.toLowerCase();
-    const familyNameMatch = f.name?.toLowerCase().includes(searchLower);
-    const personMatch = f.people.some(p => 
-      p.firstName?.toLowerCase().includes(searchLower) || 
-      p.lastName?.toLowerCase().includes(searchLower)
-    );
-    return !search || familyNameMatch || personMatch;
-  });
+  const filteredFamilies = useMemo(() => {
+    return families?.filter(f => {
+      const searchLower = search.toLowerCase();
+      const familyNameMatch = f.name?.toLowerCase().includes(searchLower);
+      const personMatch = f.people.some(p => 
+        p.firstName?.toLowerCase().includes(searchLower) || 
+        p.lastName?.toLowerCase().includes(searchLower)
+      );
+      return !search || familyNameMatch || personMatch;
+    });
+  }, [families, search]);
 
   if (isLoading) {
     return (

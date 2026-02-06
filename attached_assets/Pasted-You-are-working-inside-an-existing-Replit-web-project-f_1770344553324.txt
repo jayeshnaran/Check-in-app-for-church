@@ -1,0 +1,167 @@
+You are working inside an existing Replit web project for a church check-ins app.
+
+DO NOT start from scratch.
+DO NOT redesign the UI.
+DO NOT replace the interaction model.
+
+Your task is to extend the existing HTML/CSS/JS app by adding a lightweight backend using Replit’s own database and WebSockets for realtime sync, while preserving the current UX and behaviour exactly as it is unless explicitly instructed otherwise.
+
+What this app is for
+
+This app is used during Sunday welcoming to quickly capture new people because Planning Center’s native check-ins app is too slow for newcomers.
+
+Constraints:
+
+3–4 concurrent users max
+
+Mobile-first UI
+
+Messy, incomplete data is expected
+
+Last-write-wins is acceptable
+
+Speed > correctness during capture
+
+Data can be cleaned up later by an admin
+
+UX rules (non-negotiable)
+
+The current UI already supports:
+
+Mobile-width layout (even on desktop)
+
+Card-based family groups
+
+Square person tiles that toggle:
+
+man / woman / boy / girl (unlocked mode)
+
+Automatic “Unknown family” label when >1 person
+
+Lock / unlock modes:
+
+Unlocked
+
+Fast capture
+
+Toggle person type
+
+Add/remove people
+
+Delete families
+
+Locked
+
+Structure frozen
+
+Tapping a person opens edit modal
+
+Age bracket pills visible
+
+Visitor / newcomer pill visible but locked
+
+Family-level visitor/newcomer pill
+
+Dashed “add person” ghost card pinned at top
+
+No tables, no list-based UI, no redesign
+
+Do not rename buttons, modes, or concepts.
+Do not add new UI flows unless asked.
+
+Backend requirements (Replit-native)
+
+Use one of:
+
+Replit DB (key/value)
+
+Or a simple server-side in-memory store + persistence
+
+Model data to match the UI:
+
+A “Sunday session”
+
+Family groups
+
+People belonging to families
+
+Data must allow:
+
+Missing first/last names
+
+Age bracket unset
+
+Group-level visitor/newcomer state
+
+Keep the model simple and serialisable (JSON-friendly).
+
+Realtime requirements
+
+Implement realtime syncing so that when one user:
+
+Adds or deletes a family
+
+Adds or deletes a person
+
+Changes person type
+
+Edits person details
+
+Changes visitor/newcomer state
+
+All other connected clients update near-instantly without refresh.
+
+Use:
+
+WebSockets (preferred)
+
+Simple broadcast model
+
+No complex conflict resolution
+
+Last write wins
+
+Frontend integration
+
+Keep the existing HTML/CSS/JS structure
+
+Incrementally modify the JS to:
+
+Send mutations to the server
+
+Receive realtime updates
+
+Reflect remote changes in the DOM
+
+Vanilla JS only
+
+No frameworks
+
+No build tools
+
+Planning Center (future)
+
+Eventually, an admin will push confirmed people into Planning Center (PCO).
+
+For now:
+
+Design the data so this is easy later
+
+Clearly comment where a PCO sync would hook in
+
+Do NOT implement the PCO API yet
+
+How to work
+
+Review the existing frontend code
+
+Propose a simple server + DB structure
+
+Add realtime sync
+
+Explain changes briefly
+
+Ask before making UX or architectural changes
+
+I will now provide the existing HTML, CSS, and JS.
+Start by analysing them and proposing the server data model and realtime approach before writing code.

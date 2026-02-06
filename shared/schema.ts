@@ -7,20 +7,20 @@ import { relations } from "drizzle-orm";
 
 export const families = pgTable("families", {
   id: serial("id").primaryKey(),
-  name: text("name"), // Can be auto-generated or explicitly set
-  isVisitor: boolean("is_visitor").default(false),
+  name: text("name"), 
+  status: text("status").default("newcomer"), // 'newcomer' or 'visitor'
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
-  familyId: integer("family_id").notNull(), // Foreign key to families
+  familyId: integer("family_id").notNull(), 
   type: text("type").notNull(), // 'man', 'woman', 'boy', 'girl'
   firstName: text("first_name"),
   lastName: text("last_name"),
-  ageBracket: text("age_bracket"), // e.g., '0-2', '3-5', 'K-5'
-  isVisitor: boolean("is_visitor").default(false),
+  ageBracket: text("age_bracket"), 
+  status: text("status").default("newcomer"), // 'newcomer' or 'visitor'
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -59,7 +59,7 @@ export type UpdatePersonRequest = Partial<InsertPerson>;
 
 // WebSocket Events
 export const WS_EVENTS = {
-  UPDATE: 'update', // Generic update signal to refetch
+  UPDATE: 'update',
 } as const;
 
 export interface WsMessage {

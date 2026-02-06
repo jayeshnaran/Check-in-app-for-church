@@ -4,7 +4,7 @@ import {
   type Family, type InsertFamily, type UpdateFamilyRequest,
   type Person, type InsertPerson, type UpdatePersonRequest
 } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Families
@@ -23,12 +23,11 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getFamilies(): Promise<(Family & { people: Person[] })[]> {
     const allFamilies = await db.select().from(families).orderBy(desc(families.createdAt));
-    const allPeople = await db.select().from(people);
+    const allPeople = await db.select().from(people).orderBy(asc(people.id));
 
-    // Join people to families
     return allFamilies.map(family => ({
       ...family,
-      people: allPeople.filter(p => p.familyId === family.id).sort((a, b) => a.id - b.id)
+      people: allPeople.filter(p => p.familyId === family.id)
     }));
   }
 
@@ -51,7 +50,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteFamily(id: number): Promise<void> {
-    // Cascade delete people first (though DB FK might handle it if configured, manual is safer here without migration file editing)
     await db.delete(people).where(eq(people.familyId, id));
     await db.delete(families).where(eq(families.id, id));
   }

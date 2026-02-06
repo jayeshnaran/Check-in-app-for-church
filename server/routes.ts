@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
-import { api, errorSchemas } from "@shared/routes";
+import { api } from "@shared/routes";
 import { z } from "zod";
 import { WS_EVENTS } from "@shared/schema";
 
@@ -11,7 +11,6 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // WebSocket Setup
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   function broadcast(type: string, payload?: any) {
@@ -23,14 +22,6 @@ export async function registerRoutes(
     });
   }
 
-  wss.on('connection', (ws) => {
-    console.log('Client connected');
-    ws.on('close', () => console.log('Client disconnected'));
-  });
-
-  // API Routes
-
-  // Families
   app.get(api.families.list.path, async (req, res) => {
     const families = await storage.getFamilies();
     res.json(families);
@@ -43,10 +34,7 @@ export async function registerRoutes(
       broadcast(WS_EVENTS.UPDATE);
       res.status(201).json(family);
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      throw err;
+      res.status(400).json({ message: "Invalid input" });
     }
   });
 
@@ -56,13 +44,21 @@ export async function registerRoutes(
       const input = api.families.update.input.parse(req.body);
       const updated = await storage.updateFamily(id, input);
       if (!updated) return res.status(404).json({ message: "Family not found" });
+      
+      // If family status changed, update all people in that family
+      if (input.status) {
+        const familyWithPeople = (await storage.getFamilies()).find(f => f.id === id);
+        if (familyWithPeople) {
+          for (const person of familyWithPeople.people) {
+            await storage.updatePerson(person.id, { status: input.status });
+          }
+        }
+      }
+
       broadcast(WS_EVENTS.UPDATE);
       res.json(updated);
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      throw err;
+      res.status(400).json({ message: "Invalid input" });
     }
   });
 
@@ -73,7 +69,6 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
-  // People
   app.post(api.people.create.path, async (req, res) => {
     try {
       const input = api.people.create.input.parse(req.body);
@@ -81,10 +76,7 @@ export async function registerRoutes(
       broadcast(WS_EVENTS.UPDATE);
       res.status(201).json(person);
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      throw err;
+      res.status(400).json({ message: "Invalid input" });
     }
   });
 
@@ -93,14 +85,10 @@ export async function registerRoutes(
     try {
       const input = api.people.update.input.parse(req.body);
       const updated = await storage.updatePerson(id, input);
-      if (!updated) return res.status(404).json({ message: "Person not found" });
       broadcast(WS_EVENTS.UPDATE);
       res.json(updated);
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      throw err;
+      res.status(400).json({ message: "Invalid input" });
     }
   });
 
@@ -110,19 +98,6 @@ export async function registerRoutes(
     broadcast(WS_EVENTS.UPDATE);
     res.status(204).end();
   });
-
-  // Seed Data
-  if ((await storage.getFamilies()).length === 0) {
-    console.log("Seeding database...");
-    const f1 = await storage.createFamily({ name: "The Smiths", isVisitor: false });
-    await storage.createPerson({ familyId: f1.id, type: "man", firstName: "John", lastName: "Smith" });
-    await storage.createPerson({ familyId: f1.id, type: "woman", firstName: "Jane", lastName: "Smith" });
-    await storage.createPerson({ familyId: f1.id, type: "boy", firstName: "Timmy", lastName: "Smith", ageBracket: "3-5" });
-
-    const f2 = await storage.createFamily({ name: "", isVisitor: true }); // Unknown family name
-    await storage.createPerson({ familyId: f2.id, type: "woman", firstName: "Sarah", isVisitor: true });
-    await storage.createPerson({ familyId: f2.id, type: "girl", firstName: "Lily", isVisitor: true });
-  }
 
   return httpServer;
 }

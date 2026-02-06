@@ -13,6 +13,7 @@ interface PersonTileProps {
 
 export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: PersonTileProps) {
   const getIcon = () => {
+    if (person.firstName) return null;
     switch (person.type) {
       case "man": return <User className="w-8 h-8" />;
       case "woman": return <User className="w-8 h-8 text-pink-500" />;
@@ -23,6 +24,7 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
   };
 
   const getLabel = () => {
+    if (person.firstName) return null;
     switch (person.type) {
       case "man": return "Man";
       case "woman": return "Woman";
@@ -56,16 +58,20 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
             : "bg-white border-transparent shadow-md hover:shadow-lg border-b-4 border-b-border hover:border-b-primary/50"
         )}
       >
-        <div className="p-3 rounded-full bg-secondary/50 group-hover:bg-background transition-colors">
-          {getIcon()}
-        </div>
+        {getIcon() && (
+          <div className="p-3 rounded-full bg-secondary/50 group-hover:bg-background transition-colors">
+            {getIcon()}
+          </div>
+        )}
         
-        <div className="flex flex-col items-center">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {getLabel()}
-          </span>
-          {mode === "locked" && person.firstName && (
-            <span className="text-sm font-semibold truncate max-w-[90%] text-foreground">
+        <div className="flex flex-col items-center text-center px-1">
+          {getLabel() && (
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {getLabel()}
+            </span>
+          )}
+          {person.firstName && (
+            <span className="text-base font-bold truncate max-w-[90%] text-foreground leading-tight">
               {person.firstName}
             </span>
           )}
@@ -76,8 +82,8 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
           )}
         </div>
         
-        {person.isVisitor && (
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-orange-400" />
+        {person.status === 'newcomer' && (
+          <span className="absolute top-3 right-3 w-3 h-3 rounded-full bg-green-500 border-2 border-white shadow-sm" />
         )}
       </button>
 

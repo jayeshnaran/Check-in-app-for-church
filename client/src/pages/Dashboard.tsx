@@ -156,18 +156,31 @@ export default function Dashboard() {
                         className="h-8 text-sm font-bold w-40 bg-white"
                       />
                     )}
-                    {family.isVisitor && (
-                      <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                        Visitor
-                      </Badge>
-                    )}
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "cursor-pointer transition-colors",
+                        family.status === 'newcomer' ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200"
+                      )}
+                      onClick={() => {
+                        if (mode === 'unlocked') {
+                          const newStatus = family.status === 'newcomer' ? 'visitor' : 'newcomer';
+                          updateFamily.mutate({ id: family.id, status: newStatus });
+                        }
+                      }}
+                    >
+                      {family.status === 'newcomer' ? 'Newcomer' : 'Visitor'}
+                    </Badge>
                   </div>
                   
                   {mode === "unlocked" && (
                     <div className="flex items-center gap-2">
                       <Switch
-                        checked={family.isVisitor || false}
-                        onCheckedChange={(checked) => updateFamily.mutate({ id: family.id, isVisitor: checked })}
+                        checked={family.status === 'visitor'}
+                        onCheckedChange={(checked) => {
+                          const newStatus = checked ? 'visitor' : 'newcomer';
+                          updateFamily.mutate({ id: family.id, status: newStatus });
+                        }}
                         className="scale-75"
                       />
                       <Button

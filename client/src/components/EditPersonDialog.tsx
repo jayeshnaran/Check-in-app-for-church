@@ -19,14 +19,14 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [ageBracket, setAgeBracket] = useState("");
-  const [isVisitor, setIsVisitor] = useState(false);
+  const [status, setStatus] = useState<"newcomer" | "visitor">("newcomer");
 
   useEffect(() => {
     if (person) {
       setFirstName(person.firstName || "");
       setLastName(person.lastName || "");
       setAgeBracket(person.ageBracket || "");
-      setIsVisitor(person.isVisitor || false);
+      setStatus((person.status as any) || "newcomer");
     }
   }, [person]);
 
@@ -38,7 +38,7 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
       firstName: firstName || null,
       lastName: lastName || null,
       ageBracket: ageBracket || null,
-      isVisitor,
+      status,
     });
   };
 
@@ -89,13 +89,15 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
 
           <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
             <div className="space-y-0.5">
-              <Label htmlFor="isVisitor">Visitor / Newcomer</Label>
-              <div className="text-xs text-muted-foreground">Mark this person as visiting</div>
+              <Label htmlFor="status">Visitor Status</Label>
+              <div className="text-xs text-muted-foreground">
+                {status === 'newcomer' ? 'Newcomer (Green dot)' : 'Visitor'}
+              </div>
             </div>
             <Switch 
-              id="isVisitor" 
-              checked={isVisitor} 
-              onCheckedChange={setIsVisitor} 
+              id="status" 
+              checked={status === 'visitor'} 
+              onCheckedChange={(checked) => setStatus(checked ? 'visitor' : 'newcomer')} 
             />
           </div>
 

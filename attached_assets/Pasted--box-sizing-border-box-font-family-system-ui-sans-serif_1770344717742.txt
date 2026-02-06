@@ -1,0 +1,217 @@
+* {
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  background: #f0f0f0;
+  display: flex;
+  justify-content: center;
+}
+
+.app {
+  width: 100%;
+  max-width: 390px;
+}
+
+h1 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+/* Controls */
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+button {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.primary {
+  background: #2c7be5;
+  color: white;
+}
+
+.secondary {
+  background: #e0e0e0;
+}
+
+/* Groups */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group {
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  position: relative;
+}
+
+.group-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Family action button */
+.group-action {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* People */
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.person {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  position: relative;
+  cursor: pointer;
+}
+
+.person .corner {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 12px;
+}
+
+.age-pill {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  font-size: 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  white-space: nowrap;
+  line-height: 1;
+  display: none;
+}
+
+.locked .age-pill {
+  display: block;
+}
+
+.add-person {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  border: 2px dashed #bbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #777;
+  cursor: pointer;
+}
+
+/* Pill */
+.pill {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #dbeafe;
+  cursor: pointer;
+}
+
+.pill.visitor {
+  background: #fde68a;
+}
+
+/* Colours */
+.man {
+  background: #d0e6ff;
+}
+.woman {
+  background: #ffd6e8;
+}
+.boy {
+  background: #dff5e1;
+}
+.girl {
+  background: #fff0c2;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.locked .pill {
+  opacity: 0.4;
+}
+
+.add-group {
+  background: rgba(255, 255, 255, 0.4);
+  border: 2px dashed #bbb;
+  padding: 24px 12px;
+  cursor: pointer;
+}
+
+.add-group-inner {
+  height: 64px;
+  border-radius: 10px;
+  border: 2px dashed #bbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #777;
+}

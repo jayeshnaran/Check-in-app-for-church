@@ -1,16 +1,128 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import type { Server } from "http";
+import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
+import { api, errorSchemas } from "@shared/routes";
+import { z } from "zod";
+import { WS_EVENTS } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // WebSocket Setup
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  function broadcast(type: string, payload?: any) {
+    const message = JSON.stringify({ type, payload });
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  }
+
+  wss.on('connection', (ws) => {
+    console.log('Client connected');
+    ws.on('close', () => console.log('Client disconnected'));
+  });
+
+  // API Routes
+
+  // Families
+  app.get(api.families.list.path, async (req, res) => {
+    const families = await storage.getFamilies();
+    res.json(families);
+  });
+
+  app.post(api.families.create.path, async (req, res) => {
+    try {
+      const input = api.families.create.input.parse(req.body);
+      const family = await storage.createFamily(input);
+      broadcast(WS_EVENTS.UPDATE);
+      res.status(201).json(family);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.families.update.path, async (req, res) => {
+    const id = Number(req.params.id);
+    try {
+      const input = api.families.update.input.parse(req.body);
+      const updated = await storage.updateFamily(id, input);
+      if (!updated) return res.status(404).json({ message: "Family not found" });
+      broadcast(WS_EVENTS.UPDATE);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.delete(api.families.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    await storage.deleteFamily(id);
+    broadcast(WS_EVENTS.UPDATE);
+    res.status(204).end();
+  });
+
+  // People
+  app.post(api.people.create.path, async (req, res) => {
+    try {
+      const input = api.people.create.input.parse(req.body);
+      const person = await storage.createPerson(input);
+      broadcast(WS_EVENTS.UPDATE);
+      res.status(201).json(person);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.put(api.people.update.path, async (req, res) => {
+    const id = Number(req.params.id);
+    try {
+      const input = api.people.update.input.parse(req.body);
+      const updated = await storage.updatePerson(id, input);
+      if (!updated) return res.status(404).json({ message: "Person not found" });
+      broadcast(WS_EVENTS.UPDATE);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  app.delete(api.people.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    await storage.deletePerson(id);
+    broadcast(WS_EVENTS.UPDATE);
+    res.status(204).end();
+  });
+
+  // Seed Data
+  if ((await storage.getFamilies()).length === 0) {
+    console.log("Seeding database...");
+    const f1 = await storage.createFamily({ name: "The Smiths", isVisitor: false });
+    await storage.createPerson({ familyId: f1.id, type: "man", firstName: "John", lastName: "Smith" });
+    await storage.createPerson({ familyId: f1.id, type: "woman", firstName: "Jane", lastName: "Smith" });
+    await storage.createPerson({ familyId: f1.id, type: "boy", firstName: "Timmy", lastName: "Smith", ageBracket: "3-5" });
+
+    const f2 = await storage.createFamily({ name: "", isVisitor: true }); // Unknown family name
+    await storage.createPerson({ familyId: f2.id, type: "woman", firstName: "Sarah", isVisitor: true });
+    await storage.createPerson({ familyId: f2.id, type: "girl", firstName: "Lily", isVisitor: true });
+  }
 
   return httpServer;
 }

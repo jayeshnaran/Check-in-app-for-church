@@ -66,24 +66,26 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
         
         <div className="flex flex-col items-center text-center px-1">
           {getLabel() && (
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {getLabel()}
             </span>
           )}
           {person.firstName && (
-            <span className="text-base font-bold truncate max-w-[90%] text-foreground leading-tight">
+            <span className="text-sm font-bold truncate max-w-[95%] text-foreground leading-tight px-0.5">
               {person.firstName}
             </span>
           )}
           {mode === "locked" && person.ageBracket && (
-            <span className="mt-1 px-1.5 py-0.5 text-[10px] font-medium bg-secondary text-secondary-foreground rounded-md">
+            <span className="mt-1 px-1.5 py-0.5 text-[9px] font-medium bg-secondary text-secondary-foreground rounded-md">
               {person.ageBracket}
             </span>
           )}
         </div>
         
-        {person.status === 'newcomer' && (
-          <span className="absolute top-3 right-3 w-3 h-3 rounded-full bg-green-500 border-2 border-white shadow-sm" />
+        {person.status === 'newcomer' ? (
+          <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white shadow-sm" />
+        ) : (
+          <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-white shadow-sm" />
         )}
       </button>
 

@@ -6,13 +6,14 @@ import { EditPersonDialog } from "@/components/EditPersonDialog";
 import { type Person, type Family } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   // Connect WS
@@ -67,6 +68,20 @@ export default function Dashboard() {
     });
   };
 
+  const handleSync = () => {
+    toast({ 
+      title: "Syncing...", 
+      description: "Sending data to Planning Center",
+    });
+    // Placeholder for actual sync logic
+    setTimeout(() => {
+      toast({ 
+        title: "Sync Complete", 
+        description: "All records sent to Planning Center",
+      });
+    }, 1500);
+  };
+
   const filteredFamilies = useMemo(() => {
     return families?.filter(f => {
       const searchLower = search.toLowerCase();
@@ -101,23 +116,30 @@ export default function Dashboard() {
               Check-in
             </h1>
             
-            <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-full border border-border">
-              <button
-                onClick={() => setMode("locked")}
-                className={`p-2 rounded-full transition-all ${
-                  mode === "locked" ? "bg-white shadow-sm text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <Lock className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setMode("unlocked")}
-                className={`p-2 rounded-full transition-all ${
-                  mode === "unlocked" ? "bg-white shadow-sm text-orange-500" : "text-muted-foreground"
-                }`}
-              >
-                <Unlock className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-2">
+              <Link href="/settings">
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Settings className="w-5 h-5" />
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-full border border-border">
+                <button
+                  onClick={() => setMode("locked")}
+                  className={`p-2 rounded-full transition-all ${
+                    mode === "locked" ? "bg-white shadow-sm text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setMode("unlocked")}
+                  className={`p-2 rounded-full transition-all ${
+                    mode === "unlocked" ? "bg-white shadow-sm text-orange-500" : "text-muted-foreground"
+                  }`}
+                >
+                  <Unlock className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -229,13 +251,21 @@ export default function Dashboard() {
             <p>No families found.</p>
           </div>
         )}
+      </main>
 
-        {/* Floating Action Button */}
+      {/* Floating Action Buttons */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+        <Button
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-xl bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+          onClick={handleSync}
+        >
+          <Database className="w-6 h-6" />
+        </Button>
         {mode === "unlocked" && (
           <motion.div 
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="fixed bottom-6 right-6 z-40"
           >
             <Button
               size="lg"
@@ -246,7 +276,7 @@ export default function Dashboard() {
             </Button>
           </motion.div>
         )}
-      </main>
+      </div>
 
       {/* Edit Dialog */}
       <EditPersonDialog

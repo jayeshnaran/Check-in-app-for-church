@@ -35,7 +35,7 @@ export function useCreateFamily() {
       queryClient.setQueryData([api.families.list.path], context?.previous);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
+      // Don't invalidate if we're in the middle of other mutations
     },
   });
 }
@@ -69,7 +69,7 @@ export function useUpdateFamily() {
       queryClient.setQueryData([api.families.list.path], context?.previous);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
+      // No automatic refetch to prevent lag during rapid edits
     },
   });
 }
@@ -150,7 +150,7 @@ export function useUpdatePerson() {
       queryClient.setQueryData([api.families.list.path], context?.previous);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
+      // No automatic refetch
     },
   });
 }

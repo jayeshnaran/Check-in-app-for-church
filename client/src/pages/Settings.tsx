@@ -6,18 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 
 export default function Settings() {
   const { toast } = useToast();
   const [apiKey, setApiKey] = useState(localStorage.getItem("pco_api_key") || "");
   const [appId, setAppId] = useState(localStorage.getItem("pco_app_id") || "");
+  const [offlineMode, setOfflineMode] = useState(localStorage.getItem("offline_mode") === "true");
 
   const handleSave = () => {
     localStorage.setItem("pco_api_key", apiKey);
     localStorage.setItem("pco_app_id", appId);
+    localStorage.setItem("offline_mode", offlineMode.toString());
     toast({
       title: "Settings Saved",
-      description: "Planning Center API details have been stored locally.",
+      description: "Configuration has been updated.",
     });
   };
 
@@ -32,6 +35,24 @@ export default function Settings() {
           </Link>
           <h1 className="text-2xl font-black tracking-tight">Settings</h1>
         </div>
+
+        <Card className="rounded-3xl border-none shadow-sm bg-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Preferences</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+              <div className="space-y-0.5">
+                <Label>Offline Mode</Label>
+                <p className="text-xs text-muted-foreground">Export to CSV instead of database</p>
+              </div>
+              <Switch 
+                checked={offlineMode}
+                onCheckedChange={setOfflineMode}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="rounded-3xl border-none shadow-sm bg-card">
           <CardHeader>

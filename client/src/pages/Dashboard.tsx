@@ -6,7 +6,7 @@ import { EditPersonDialog } from "@/components/EditPersonDialog";
 import { type Person, type Family } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [mode, setMode] = useState<"locked" | "unlocked">("locked");
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
+  const isOffline = localStorage.getItem("offline_mode") === "true";
 
   // Queries & Mutations
   const { data: families, isLoading } = useFamilies();
@@ -69,6 +70,11 @@ export default function Dashboard() {
   };
 
   const handleSync = () => {
+    if (isOffline) {
+      handleExportCSV();
+      return;
+    }
+
     toast({ 
       title: "Syncing...", 
       description: "Sending data to Planning Center",
@@ -80,6 +86,39 @@ export default function Dashboard() {
         description: "All records sent to Planning Center",
       });
     }, 1500);
+  };
+
+  const handleExportCSV = () => {
+    if (!families) return;
+    
+    let csvContent = "data:text/csv;charset=utf-8,Family,Status,First Name,Last Name,Type,Age Bracket\n";
+    
+    families.forEach(family => {
+      family.people.forEach(person => {
+        const row = [
+          family.name || "Unknown",
+          family.status || "newcomer",
+          person.firstName || "",
+          person.lastName || "",
+          person.type,
+          person.ageBracket || ""
+        ].join(",");
+        csvContent += row + "\n";
+      });
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `church_checkins_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({ 
+      title: "Exported", 
+      description: "CSV file has been downloaded",
+    });
   };
 
   const filteredFamilies = useMemo(() => {
@@ -260,7 +299,7 @@ export default function Dashboard() {
           className="h-14 w-14 rounded-full shadow-xl bg-secondary hover:bg-secondary/90 text-secondary-foreground"
           onClick={handleSync}
         >
-          <Database className="w-6 h-6" />
+          {isOffline ? <Download className="w-6 h-6" /> : <Database className="w-6 h-6" />}
         </Button>
         {mode === "unlocked" && (
           <motion.div 

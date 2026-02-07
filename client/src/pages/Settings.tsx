@@ -22,6 +22,10 @@ export default function Settings() {
       title: "Settings Saved",
       description: "Configuration has been updated.",
     });
+    // Add a small delay then redirect back to dashboard to ensure state is fresh
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 500);
   };
 
   return (

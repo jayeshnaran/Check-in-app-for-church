@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson } from "@/hooks/use-families";
 import { useWebSocket } from "@/hooks/use-ws";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
@@ -24,7 +24,16 @@ export default function Dashboard() {
   const [mode, setMode] = useState<"locked" | "unlocked">("locked");
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
-  const isOffline = localStorage.getItem("offline_mode") === "true";
+  const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
+
+  // Re-check offline mode when component mounts or focus returns
+  useEffect(() => {
+    const checkOffline = () => {
+      setIsOffline(localStorage.getItem("offline_mode") === "true");
+    };
+    window.addEventListener('focus', checkOffline);
+    return () => window.removeEventListener('focus', checkOffline);
+  }, []);
 
   // Queries & Mutations
   const { data: families, isLoading } = useFamilies();
@@ -107,7 +116,7 @@ export default function Dashboard() {
       });
     });
 
-    const encodedUri = encodeURI(csvContent);
+    const encodedUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", `church_checkins_${new Date().toISOString().split('T')[0]}.csv`);

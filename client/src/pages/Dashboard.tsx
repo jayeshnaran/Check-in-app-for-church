@@ -224,7 +224,16 @@ export default function Dashboard() {
                     ) : (
                       <Input
                         value={family.name || ""}
-                        onChange={(e) => updateFamily.mutate({ id: family.id, name: e.target.value })}
+                        onChange={(e) => {
+                          const newName = e.target.value;
+                          updateFamily.mutate({ id: family.id, name: newName });
+                          // Automatically update last name for all members
+                          family.people.forEach(person => {
+                            if (!person.lastName || person.lastName === family.name) {
+                              updatePerson.mutate({ id: person.id, lastName: newName });
+                            }
+                          });
+                        }}
                         placeholder="Family Name"
                         className="h-8 text-sm font-bold w-40 bg-white"
                       />

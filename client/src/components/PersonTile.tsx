@@ -34,6 +34,13 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
     }
   };
 
+  const getInitials = () => {
+    if (!person.firstName) return null;
+    const firstInitial = person.firstName.charAt(0).toUpperCase();
+    const lastInitial = person.lastName ? person.lastName.charAt(0).toUpperCase() : "";
+    return firstInitial + lastInitial;
+  };
+
   const handleClick = () => {
     if (mode === "unlocked") {
       onToggleType?.();
@@ -58,21 +65,24 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
             : "bg-white border-transparent shadow-md hover:shadow-lg border-b-4 border-b-border hover:border-b-primary/50"
         )}
       >
-        {getIcon() && (
-          <div className="p-3 rounded-full bg-secondary/50 group-hover:bg-background transition-colors">
-            {getIcon()}
+        {person.firstName ? (
+          <div className="flex items-center justify-center">
+            <span className="text-3xl font-black text-primary tracking-tighter">
+              {getInitials()}
+            </span>
           </div>
+        ) : (
+          getIcon() && (
+            <div className="p-3 rounded-full bg-secondary/50 group-hover:bg-background transition-colors">
+              {getIcon()}
+            </div>
+          )
         )}
         
         <div className="flex flex-col items-center text-center px-1">
           {getLabel() && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {getLabel()}
-            </span>
-          )}
-          {person.firstName && (
-            <span className="text-sm font-bold truncate max-w-[95%] text-foreground leading-tight px-0.5">
-              {person.firstName}
             </span>
           )}
           {mode === "locked" && person.ageBracket && (

@@ -206,10 +206,11 @@ export default function Dashboard() {
           {filteredFamilies?.map((family) => (
             <motion.div
               key={family.id}
-              layout
+              layout="position"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
             >
               <Card className={`relative overflow-hidden border-2 transition-all ${
                 mode === 'unlocked' ? 'border-dashed border-primary/20 bg-primary/5' : 'border-border shadow-sm hover:shadow-md'
@@ -282,21 +283,26 @@ export default function Dashboard() {
                 </div>
 
                 {/* People Grid */}
-                <div className="p-4 grid grid-cols-3 gap-3">
-                  {family.people.sort((a, b) => a.id - b.id).map((person) => (
-                    <PersonTile
-                      key={person.id}
-                      person={person}
-                      mode={mode}
-                      onToggleType={() => handleTogglePersonType(person)}
-                      onEdit={() => setEditingPerson(person)}
-                      onDelete={() => deletePerson.mutate(person.id)}
-                    />
-                  ))}
-                  
-                  {mode === "unlocked" && (
-                    <AddPersonTile onClick={() => handleAddPerson(family.id)} />
-                  )}
+                <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {family.people.sort((a, b) => {
+                      const timeA = new Date(a.createdAt || 0).getTime();
+                      const timeB = new Date(b.createdAt || 0).getTime();
+                      return timeA - timeB || a.id - b.id;
+                    }).map((person) => (
+                      <PersonTile
+                        key={person.id}
+                        person={person}
+                        mode={mode}
+                        onToggleType={() => handleTogglePersonType(person)}
+                        onEdit={() => setEditingPerson(person)}
+                        onDelete={() => deletePerson.mutate(person.id)}
+                      />
+                    ))}
+                    {mode === "unlocked" && (
+                      <AddPersonTile key="add-button" onClick={() => handleAddPerson(family.id)} />
+                    )}
+                  </AnimatePresence>
                 </div>
               </Card>
             </motion.div>

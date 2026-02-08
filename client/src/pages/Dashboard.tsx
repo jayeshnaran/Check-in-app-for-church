@@ -70,7 +70,9 @@ export default function Dashboard() {
     );
   };
 
-  const handleAddPerson = (familyId: number) => {
+  const handleAddPerson = (e: React.MouseEvent, familyId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
     createPerson.mutate({
       familyId,
       type: 'man',
@@ -299,7 +301,7 @@ export default function Dashboard() {
                     />
                   ))}
                   {mode === "unlocked" && (
-                    <AddPersonTile key="add-button" onClick={() => handleAddPerson(family.id)} />
+                    <AddPersonTile key="add-button" onClick={(e) => handleAddPerson(e, family.id)} />
                   )}
                 </div>
               </Card>

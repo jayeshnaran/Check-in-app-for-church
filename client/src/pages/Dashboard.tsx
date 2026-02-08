@@ -284,25 +284,23 @@ export default function Dashboard() {
 
                 {/* People Grid */}
                 <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    {family.people.sort((a, b) => {
-                      const timeA = new Date(a.createdAt || 0).getTime();
-                      const timeB = new Date(b.createdAt || 0).getTime();
-                      return timeA - timeB || a.id - b.id;
-                    }).map((person) => (
-                      <PersonTile
-                        key={person.id}
-                        person={person}
-                        mode={mode}
-                        onToggleType={() => handleTogglePersonType(person)}
-                        onEdit={() => setEditingPerson(person)}
-                        onDelete={() => deletePerson.mutate(person.id)}
-                      />
-                    ))}
-                    {mode === "unlocked" && (
-                      <AddPersonTile key="add-button" onClick={() => handleAddPerson(family.id)} />
-                    )}
-                  </AnimatePresence>
+                  {family.people.sort((a, b) => {
+                    const timeA = new Date(a.createdAt || 0).getTime();
+                    const timeB = new Date(b.createdAt || 0).getTime();
+                    return timeA - timeB || (typeof a.id === 'number' && typeof b.id === 'number' ? a.id - b.id : 0);
+                  }).map((person) => (
+                    <PersonTile
+                      key={person.id}
+                      person={person}
+                      mode={mode}
+                      onToggleType={() => handleTogglePersonType(person)}
+                      onEdit={() => setEditingPerson(person)}
+                      onDelete={() => deletePerson.mutate(person.id)}
+                    />
+                  ))}
+                  {mode === "unlocked" && (
+                    <AddPersonTile key="add-button" onClick={() => handleAddPerson(family.id)} />
+                  )}
                 </div>
               </Card>
             </motion.div>

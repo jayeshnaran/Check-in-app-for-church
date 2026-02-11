@@ -20,8 +20,9 @@ export function useCreateFamily() {
       await queryClient.cancelQueries({ queryKey: [api.families.list.path] });
       const previous = queryClient.getQueryData<any[]>([api.families.list.path]);
       
+      const tempId = Math.random();
       const optimisticFamily = {
-        id: Math.random(),
+        id: tempId,
         ...newFamily,
         status: newFamily.status || 'newcomer',
         createdAt: new Date().toISOString(),
@@ -29,13 +30,22 @@ export function useCreateFamily() {
       };
 
       queryClient.setQueryData([api.families.list.path], (old: any) => [optimisticFamily, ...(old || [])]);
-      return { previous };
+      return { previous, tempId };
     },
     onError: (err, newFamily, context) => {
       queryClient.setQueryData([api.families.list.path], context?.previous);
     },
+    onSuccess: (data, variables, context) => {
+      // Smoothly swap temp ID for real ID without refetch flicker
+      queryClient.setQueryData([api.families.list.path], (old: any) => 
+        old?.map((f: any) => f.id === context.tempId ? { ...f, id: data.id } : f)
+      );
+    },
     onSettled: () => {
-      // Don't invalidate if we're in the middle of other mutations
+      // Delay refetch slightly to let animations finish
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
+      }, 500);
     },
   });
 }
@@ -106,8 +116,9 @@ export function useCreatePerson() {
       await queryClient.cancelQueries({ queryKey: [api.families.list.path] });
       const previous = queryClient.getQueryData<any[]>([api.families.list.path]);
 
+      const tempId = Math.random();
       const optimisticPerson = {
-        id: Math.random(),
+        id: tempId,
         ...newPerson,
         status: newPerson.status || 'newcomer',
         createdAt: new Date().toISOString(),
@@ -116,13 +127,23 @@ export function useCreatePerson() {
       queryClient.setQueryData([api.families.list.path], (old: any) => 
         old?.map((f: any) => f.id === newPerson.familyId ? { ...f, people: [...f.people, optimisticPerson] } : f)
       );
-      return { previous };
+      return { previous, tempId };
     },
     onError: (err, newPerson, context) => {
       queryClient.setQueryData([api.families.list.path], context?.previous);
     },
+    onSuccess: (data, variables, context) => {
+      queryClient.setQueryData([api.families.list.path], (old: any) => 
+        old?.map((f: any) => ({
+          ...f,
+          people: f.people.map((p: any) => p.id === context.tempId ? { ...p, id: data.id } : p)
+        }))
+      );
+    },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
+      }, 500);
     },
   });
 }

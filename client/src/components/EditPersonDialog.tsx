@@ -34,11 +34,24 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
     e.preventDefault();
     if (!person) return;
     
+    const childBrackets = ["0-3", "4-7", "8-11", "12-17"];
+    const isChildBracket = childBrackets.includes(ageBracket);
+    let newType = person.type;
+
+    if (isChildBracket) {
+      if (person.type === "man") newType = "boy";
+      if (person.type === "woman") newType = "girl";
+    } else {
+      if (person.type === "boy") newType = "man";
+      if (person.type === "girl") newType = "woman";
+    }
+    
     onSave(person.id, {
       firstName: firstName || null,
       lastName: lastName || null,
       ageBracket: ageBracket || null,
       status,
+      type: newType,
     });
   };
 
@@ -72,17 +85,30 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
           
           <div className="space-y-2">
             <Label htmlFor="ageBracket">Age Bracket</Label>
-            <Select value={ageBracket} onValueChange={setAgeBracket}>
+            <Select value={ageBracket} onValueChange={(val) => {
+              setAgeBracket(val);
+              // Auto-switch person type based on age
+              const childBrackets = ["0-3", "4-7", "8-11", "12-17"];
+              const isChildBracket = childBrackets.includes(val);
+              // We'll pass this hint to the onSave or handle it in the person type selection
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select age bracket" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="0-2">Nursery (0-2)</SelectItem>
-                <SelectItem value="3-5">Pre-K (3-5)</SelectItem>
-                <SelectItem value="K-5">Elementary (K-5)</SelectItem>
-                <SelectItem value="6-8">Middle School (6-8)</SelectItem>
-                <SelectItem value="9-12">High School (9-12)</SelectItem>
-                <SelectItem value="Adult">Adult</SelectItem>
+                <SelectItem value="0-3">0-3</SelectItem>
+                <SelectItem value="4-7">4-7</SelectItem>
+                <SelectItem value="8-11">8-11</SelectItem>
+                <SelectItem value="12-17">12-17</SelectItem>
+                <SelectItem value="18-24">18-24</SelectItem>
+                <SelectItem value="25-29">25-29</SelectItem>
+                <SelectItem value="30-39">30s</SelectItem>
+                <SelectItem value="40-49">40s</SelectItem>
+                <SelectItem value="50-59">50s</SelectItem>
+                <SelectItem value="60-69">60s</SelectItem>
+                <SelectItem value="70-79">70s</SelectItem>
+                <SelectItem value="80-89">80s</SelectItem>
+                <SelectItem value="90-99">90s</SelectItem>
               </SelectContent>
             </Select>
           </div>

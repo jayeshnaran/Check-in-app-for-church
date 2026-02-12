@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, LogOut } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -262,68 +262,67 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     <div className="min-h-screen bg-background pb-20">
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border shadow-sm">
-        <div className="max-w-md mx-auto px-4 py-4 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
-              <Users className="w-6 h-6 text-primary" />
+        <div className="max-w-md mx-auto px-4 py-3 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
               Check-in
             </h1>
             
-            <div className="flex items-center gap-2">
-              <Link href="/settings">
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Settings className="w-5 h-5" />
-                </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full"
-                data-testid="button-logout"
-                onClick={() => { window.location.href = "/api/logout"; }}
-              >
-                <LogOut className="w-5 h-5" />
-              </Button>
+            <div className="flex items-center gap-1">
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="text-[10px] h-7 px-2 font-bold rounded-full border border-primary/20 bg-primary/5 text-primary"
+                className="text-[10px] px-2 font-bold rounded-full border border-primary/20 bg-primary/5 text-primary"
                 onClick={() => {
                   localStorage.removeItem("service_session");
                   setSession(null);
                 }}
+                data-testid="button-session-info"
               >
                 {session?.date.split('-').slice(1).join('/')} @ {session?.time}
               </Button>
-              <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-full border border-border">
-                <button
-                  onClick={() => handleModeSwitch("locked")}
-                  data-testid="button-mode-locked"
-                  className={`p-2 rounded-full transition-all ${
-                    mode === "locked" ? "bg-white shadow-sm text-primary" : "text-muted-foreground"
-                  }`}
-                >
-                  <Lock className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleModeSwitch("unlocked")}
-                  data-testid="button-mode-unlocked"
-                  className={`p-2 rounded-full transition-all ${
-                    mode === "unlocked" ? "bg-white shadow-sm text-orange-500" : "text-muted-foreground"
-                  }`}
-                >
-                  <Unlock className="w-4 h-4" />
-                </button>
-              </div>
+              <Link href="/settings">
+                <Button variant="ghost" size="icon" className="rounded-full" data-testid="button-settings">
+                  <Settings className="w-5 h-5" />
+                </Button>
+              </Link>
             </div>
           </div>
 
-          <Input 
-            placeholder="Search families or people..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-secondary/30 border-secondary-foreground/10"
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input 
+              placeholder="Search families or people..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 min-w-0 bg-secondary/30 border-secondary-foreground/10"
+              data-testid="input-search"
+            />
+            <div className="flex items-center bg-secondary/50 p-1 rounded-full border border-border shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleModeSwitch("locked")}
+                data-testid="button-mode-locked"
+                className={`rounded-full toggle-elevate ${
+                  mode === "locked" ? "toggle-elevated text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleModeSwitch("unlocked")}
+                data-testid="button-mode-unlocked"
+                className={`rounded-full toggle-elevate ${
+                  mode === "unlocked" ? "toggle-elevated text-orange-500" : "text-muted-foreground"
+                }`}
+              >
+                <Unlock className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </header>
 

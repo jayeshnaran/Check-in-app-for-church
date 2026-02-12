@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Check, X, Loader2, Users, Church } from "lucide-react";
+import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [offlineMode, setOfflineMode] = useState(localStorage.getItem("offline_mode") === "true");
   const [serviceTimes, setServiceTimes] = useState<string[]>(JSON.parse(localStorage.getItem("service_times") || '["09:30"]'));
   const [newTime, setNewTime] = useState("");
@@ -115,6 +116,36 @@ export default function Settings() {
           </Link>
           <h1 className="text-2xl font-black tracking-tight">Settings</h1>
         </div>
+
+        <Card className="rounded-3xl border-none shadow-sm bg-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <User className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold truncate" data-testid="text-user-name">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-muted-foreground truncate" data-testid="text-user-email">
+                  {user?.email}
+                </p>
+              </div>
+              <Badge variant="secondary" className="shrink-0" data-testid="badge-user-role">
+                {membership?.role === "admin" ? "Admin" : "Member"}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full shrink-0"
+                data-testid="button-logout"
+                onClick={() => { window.location.href = "/api/logout"; }}
+              >
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {membership?.church && (
           <Card className="rounded-3xl border-none shadow-sm bg-card">

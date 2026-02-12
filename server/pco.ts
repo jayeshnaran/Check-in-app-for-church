@@ -139,7 +139,7 @@ export async function getValidToken(church: Church): Promise<string | null> {
 }
 
 const PCO_FIELD_DEF_STATUS = "781090";
-const PCO_FIELD_DEF_AGE_BRACKET = "211900305";
+const PCO_FIELD_DEF_AGE_BRACKET = "826722";
 
 export async function createPersonInPco(
   church: Church,
@@ -371,9 +371,7 @@ export async function pushFamilyToPco(
     const householdId = await createHousehold(token, familyName, contactId);
     if (householdId) {
       for (const pcoId of createdPcoIds) {
-        if (pcoId !== contactId) {
-          await addPersonToHousehold(token, householdId, pcoId);
-        }
+        await addPersonToHousehold(token, householdId, pcoId);
       }
     }
   }

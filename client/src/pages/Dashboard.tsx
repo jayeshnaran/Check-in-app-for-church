@@ -166,8 +166,13 @@ export default function Dashboard() {
 
   const filteredFamilies = useMemo(() => {
     return families?.filter(f => {
-      // Only show families for the selected session
-      if (f.serviceDate !== session?.date || f.serviceTime !== session?.time) return false;
+      // Precise session filtering: date and time must match
+      const familyDate = f.serviceDate || "";
+      const familyTime = f.serviceTime || "";
+      const sessionDate = session?.date || "";
+      const sessionTime = session?.time || "";
+      
+      if (familyDate !== sessionDate || familyTime !== sessionTime) return false;
 
       const searchLower = search.toLowerCase();
       const familyNameMatch = f.name?.toLowerCase().includes(searchLower);

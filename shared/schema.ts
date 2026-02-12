@@ -37,6 +37,8 @@ export const families = pgTable("families", {
   notes: text("notes"),
   serviceDate: text("service_date"),
   serviceTime: text("service_time"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -108,12 +110,3 @@ export type UpdateFamilyRequest = Partial<InsertFamily>;
 export type CreatePersonRequest = InsertPerson;
 export type UpdatePersonRequest = Partial<InsertPerson>;
 
-// WebSocket Events
-export const WS_EVENTS = {
-  UPDATE: 'update',
-} as const;
-
-export interface WsMessage {
-  type: typeof WS_EVENTS[keyof typeof WS_EVENTS];
-  payload?: any;
-}

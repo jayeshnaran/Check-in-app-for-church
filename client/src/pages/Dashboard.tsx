@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson, ServiceSessionContext } from "@/hooks/use-families";
-import { useWebSocket, setConflictHandler, suppressConflict } from "@/hooks/use-ws";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
 import { EditPersonDialog } from "@/components/EditPersonDialog";
 import { type Person, type Family } from "@shared/schema";
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -19,6 +18,7 @@ import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 
 function getRecentSunday() {
   const d = new Date();
@@ -95,16 +95,25 @@ export default function Dashboard() {
   );
 }
 
+interface ClashInfo {
+  familyId: number;
+  familyName: string;
+  updatedBy: string | null;
+}
+
 function DashboardContent({ session, setSession }: { session: { date: string, time: string }, setSession: (s: { date: string, time: string } | null) => void }) {
-  useWebSocket();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [mode, setMode] = useState<"locked" | "unlocked">("locked");
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
   const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
-  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showClashDialog, setShowClashDialog] = useState(false);
+  const [clashes, setClashes] = useState<ClashInfo[]>([]);
+  const lastSyncTimestamps = useRef<Record<number, string>>({});
 
   useEffect(() => {
     const checkOffline = () => {
@@ -114,27 +123,9 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     return () => window.removeEventListener('focus', checkOffline);
   }, []);
 
-  useEffect(() => {
-    setConflictHandler(() => {
-      setShowConflictDialog(true);
-    });
-    return () => setConflictHandler(null);
-  }, []);
-
-  const handleModeSwitch = useCallback(async (newMode: "locked" | "unlocked") => {
-    const wasUnlocked = mode === "unlocked";
+  const handleModeSwitch = useCallback((newMode: "locked" | "unlocked") => {
     setMode(newMode);
-    
-    if (wasUnlocked && newMode === "locked") {
-      try {
-        suppressConflict(2000);
-        await apiRequest("POST", "/api/sync");
-        queryClient.invalidateQueries({ queryKey: ["/api/families"] });
-      } catch {
-        // sync failed silently - data is already saved server-side
-      }
-    }
-  }, [mode, queryClient]);
+  }, []);
 
   const { data: families, isLoading } = useFamilies(session.date, session.time);
   const createFamily = useCreateFamily();
@@ -193,7 +184,86 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     },
   });
 
-  const handleSync = async () => {
+  const syncInitialized = useRef(false);
+
+  useEffect(() => {
+    if (families && !syncInitialized.current) {
+      const timestamps: Record<number, string> = {};
+      families.forEach(f => {
+        timestamps[f.id] = (f as any).updatedAt || (f as any).createdAt || "";
+      });
+      lastSyncTimestamps.current = timestamps;
+      syncInitialized.current = true;
+    }
+  }, [families]);
+
+  const updateSyncTimestamps = (serverFamilies: any[]) => {
+    const timestamps: Record<number, string> = {};
+    serverFamilies.forEach((f: any) => {
+      timestamps[f.id] = f.updatedAt || f.createdAt || "";
+    });
+    lastSyncTimestamps.current = timestamps;
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      const params = `?serviceDate=${encodeURIComponent(session.date)}&serviceTime=${encodeURIComponent(session.time)}`;
+      const res = await fetch(`/api/families${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      const serverFamilies: any[] = await res.json();
+
+      const currentUserId = user?.id;
+      const detectedClashes: ClashInfo[] = [];
+
+      for (const sf of serverFamilies) {
+        const lastKnown = lastSyncTimestamps.current[sf.id];
+        const serverUpdated = sf.updatedAt || sf.createdAt || "";
+        if (lastKnown && serverUpdated && serverUpdated !== lastKnown && sf.updatedBy !== currentUserId) {
+          detectedClashes.push({
+            familyId: sf.id,
+            familyName: sf.name || "Unknown Family",
+            updatedBy: sf.updatedBy,
+          });
+        }
+      }
+
+      if (detectedClashes.length > 0) {
+        setClashes(detectedClashes);
+        setShowClashDialog(true);
+        pendingSyncFamilies.current = serverFamilies;
+      } else {
+        updateSyncTimestamps(serverFamilies);
+        queryClient.invalidateQueries({ queryKey: ["/api/families"] });
+        toast({ title: "Synced", description: "Data is up to date" });
+      }
+    } catch {
+      toast({ title: "Sync Failed", description: "Could not refresh data from the server.", variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const pendingSyncFamilies = useRef<any[]>([]);
+
+  const handleAcceptServerChanges = () => {
+    updateSyncTimestamps(pendingSyncFamilies.current);
+    queryClient.invalidateQueries({ queryKey: ["/api/families"] });
+    pendingSyncFamilies.current = [];
+    setShowClashDialog(false);
+    setClashes([]);
+    toast({ title: "Synced", description: "Accepted the latest changes from other team members." });
+  };
+
+  const handleOverwriteWithMine = () => {
+    updateSyncTimestamps(pendingSyncFamilies.current);
+    pendingSyncFamilies.current = [];
+    setShowClashDialog(false);
+    setClashes([]);
+    toast({ title: "Kept Your Changes", description: "Your local edits have been preserved. They were already saved to the server." });
+  };
+
+  const handlePushToPco = async () => {
     if (isOffline) {
       handleExportCSV();
       return;
@@ -301,6 +371,20 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
             </h1>
             
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleManualSync}
+                disabled={isSyncing}
+                className="rounded-full"
+                data-testid="button-sync"
+              >
+                {isSyncing ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-5 h-5" />
+                )}
+              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -481,9 +565,9 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
         <Button
           size="icon"
           className="h-14 w-14 rounded-full shadow-xl bg-secondary text-secondary-foreground"
-          onClick={handleSync}
+          onClick={handlePushToPco}
           disabled={isPushing}
-          data-testid="button-sync-pco"
+          data-testid="button-push-pco"
         >
           {isPushing ? (
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -527,8 +611,8 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
         isSaving={updatePerson.isPending}
       />
 
-      {/* Conflict Warning Dialog */}
-      <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+      {/* Clash Detection Dialog */}
+      <Dialog open={showClashDialog} onOpenChange={setShowClashDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -536,15 +620,25 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
               Editing Clash Detected
             </DialogTitle>
             <DialogDescription>
-              Another team member has just synced their changes. The most recent edits have been retained. Your view will now refresh with the latest data.
+              Another team member has edited {clashes.length === 1 
+                ? `the "${clashes[0]?.familyName}" family` 
+                : `${clashes.length} families`
+              } since you last synced. What would you like to do?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col">
             <Button 
-              onClick={() => setShowConflictDialog(false)}
-              data-testid="button-dismiss-conflict"
+              onClick={handleAcceptServerChanges}
+              data-testid="button-accept-changes"
             >
-              Got it
+              Accept Their Changes
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handleOverwriteWithMine}
+              data-testid="button-keep-mine"
+            >
+              Keep My Changes
             </Button>
           </DialogFooter>
         </DialogContent>

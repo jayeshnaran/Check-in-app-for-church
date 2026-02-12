@@ -1,10 +1,8 @@
 import type { Express } from "express";
 import type { Server } from "http";
-import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { WS_EVENTS } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { isPcoConfigured, generateOAuthState, getOAuthUrl, exchangeCodeForTokens, pushFamilyToPco, testPcoConnection } from "./pco";
 
@@ -23,17 +21,6 @@ export async function registerRoutes(
 
   await setupAuth(app);
   registerAuthRoutes(app);
-
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
-  function broadcast(type: string, payload?: any, exclude?: WebSocket) {
-    const message = JSON.stringify({ type, payload });
-    wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN && client !== exclude) {
-        client.send(message);
-      }
-    });
-  }
 
   // === CHURCH ROUTES ===
 
@@ -190,10 +177,11 @@ export async function registerRoutes(
   app.post(api.families.create.path, isAuthenticated, async (req: any, res) => {
     const churchId = await getUserChurchId(req);
     if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+    const userId = req.user?.claims?.sub;
 
     try {
       const input = api.families.create.input.parse(req.body);
-      const family = await storage.createFamily({ ...input, churchId });
+      const family = await storage.createFamily({ ...input, churchId, updatedBy: userId });
       const defaultPerson = await storage.createPerson({
         familyId: family.id,
         type: 'man',
@@ -208,6 +196,7 @@ export async function registerRoutes(
   app.put(api.families.update.path, isAuthenticated, async (req: any, res) => {
     const churchId = await getUserChurchId(req);
     if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+    const userId = req.user?.claims?.sub;
 
     const id = Number(req.params.id);
     try {
@@ -215,7 +204,7 @@ export async function registerRoutes(
       if (!family || family.churchId !== churchId) return res.status(404).json({ message: "Family not found" });
 
       const input = api.families.update.input.parse(req.body);
-      const updated = await storage.updateFamily(id, input);
+      const updated = await storage.updateFamily(id, { ...input, updatedAt: new Date(), updatedBy: userId });
       
       if (input.status) {
         const familyWithPeople = (await storage.getFamilies(churchId)).find(f => f.id === id);
@@ -249,6 +238,7 @@ export async function registerRoutes(
   app.post(api.people.create.path, isAuthenticated, async (req: any, res) => {
     const churchId = await getUserChurchId(req);
     if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+    const userId = req.user?.claims?.sub;
 
     try {
       const input = api.people.create.input.parse(req.body);
@@ -256,6 +246,7 @@ export async function registerRoutes(
       if (!family || family.churchId !== churchId) return res.status(404).json({ message: "Family not found" });
 
       const person = await storage.createPerson(input);
+      await storage.updateFamily(input.familyId, { updatedAt: new Date(), updatedBy: userId });
       res.status(201).json(person);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
@@ -264,10 +255,12 @@ export async function registerRoutes(
 
   app.put(api.people.update.path, isAuthenticated, async (req: any, res) => {
     const id = Number(req.params.id);
+    const userId = req.user?.claims?.sub;
     try {
       const input = api.people.update.input.parse(req.body);
       const updated = await storage.updatePerson(id, input);
       if (!updated) return res.status(404).json({ message: "Person not found" });
+      await storage.updateFamily(updated.familyId, { updatedAt: new Date(), updatedBy: userId });
       res.json(updated);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
@@ -276,13 +269,13 @@ export async function registerRoutes(
 
   app.delete(api.people.delete.path, isAuthenticated, async (req: any, res) => {
     const id = Number(req.params.id);
+    const userId = req.user?.claims?.sub;
+    const person = await storage.getPerson(id);
+    if (person) {
+      await storage.updateFamily(person.familyId, { updatedAt: new Date(), updatedBy: userId });
+    }
     await storage.deletePerson(id);
     res.status(204).end();
-  });
-
-  app.post('/api/sync', isAuthenticated, async (_req, res) => {
-    broadcast(WS_EVENTS.UPDATE);
-    res.json({ ok: true });
   });
 
   // === PLANNING CENTER OAUTH ROUTES ===

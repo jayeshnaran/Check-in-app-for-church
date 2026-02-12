@@ -31,6 +31,7 @@ export interface IStorage {
   deleteFamily(id: number): Promise<void>;
 
   // People
+  getPerson(id: number): Promise<Person | undefined>;
   createPerson(person: InsertPerson): Promise<Person>;
   updatePerson(id: number, person: UpdatePersonRequest): Promise<Person>;
   deletePerson(id: number): Promise<void>;
@@ -127,6 +128,11 @@ export class DatabaseStorage implements IStorage {
   async deleteFamily(id: number): Promise<void> {
     await db.delete(people).where(eq(people.familyId, id));
     await db.delete(families).where(eq(families.id, id));
+  }
+
+  async getPerson(id: number): Promise<Person | undefined> {
+    const [person] = await db.select().from(people).where(eq(people.id, id));
+    return person;
   }
 
   async createPerson(person: InsertPerson): Promise<Person> {

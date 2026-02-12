@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a **church check-ins app** designed for Sunday welcoming teams to quickly capture newcomer and visitor information. It replaces Planning Center's native check-ins flow, which is too slow for newcomers. The app uses a card-based family group UI with person tiles that can be toggled between types (man/woman/boy/girl). It supports two modes: **unlocked** (fast capture, structure editing) and **locked** (data editing). The app is built for 3–4 concurrent mobile users with real-time sync via WebSockets. Speed of capture is prioritized over data correctness — messy/incomplete data is expected and can be cleaned up later by an admin.
+This is a **church check-ins app** designed for Sunday welcoming teams to quickly capture newcomer and visitor information. It replaces Planning Center's native check-ins flow, which is too slow for newcomers. The app uses a card-based family group UI with person tiles that can be toggled between types (man/woman/boy/girl). It supports two modes: **unlocked** (fast capture, structure editing) and **locked** (data editing). The app is built for 3–4 concurrent mobile users with manual sync via a Sync button. Speed of capture is prioritized over data correctness — messy/incomplete data is expected and can be cleaned up later by an admin.
 
 ### Authentication
 - **Replit Auth** (OpenID Connect) — users must sign in before accessing the app
@@ -33,7 +33,7 @@ Preferred communication style: Simple, everyday language.
 ### Backend
 - **Runtime**: Node.js with Express 5
 - **Language**: TypeScript, executed via `tsx`
-- **Real-time**: WebSocket server (ws library) mounted at `/ws` for broadcasting updates to all connected clients
+- **Sync**: Manual sync via Sync button in dashboard header — no WebSockets
 - **API Style**: RESTful JSON API under `/api/` prefix
 - **API Contract**: Shared route definitions in `shared/routes.ts` with Zod validation schemas
 
@@ -45,20 +45,18 @@ Preferred communication style: Simple, everyday language.
 - **Tables**:
   - `churches` — id, name, description, logoUrl, createdAt
   - `church_members` — id, churchId (FK), userId (FK to users), role (admin/member), status (pending/approved), createdAt
-  - `families` — id, churchId (FK), name, status (newcomer/visitor), notes, serviceDate, serviceTime, createdAt
+  - `families` — id, churchId (FK), name, status (newcomer/visitor), notes, serviceDate, serviceTime, updatedAt, updatedBy, createdAt
   - `people` — id, familyId (FK), type (man/woman/boy/girl), firstName, lastName, ageBracket, status, createdAt
   - `users` — id, email, firstName, lastName, profileImageUrl (managed by Replit Auth)
   - `sessions` — sid, sess, expire (managed by Replit Auth)
 - **Relations**: One church has many members and families; one family has many people
 - **Multi-tenancy**: All family/person data is scoped to a church via churchId; server derives churchId from authenticated user's approved membership (never from client)
 
-### Real-time Sync
-- WebSocket connection at `/ws` with automatic reconnection (3s delay)
-- **Sync-on-mode-switch model**: Individual mutations do NOT broadcast to other clients. Instead, when a user switches from unlocked → locked mode, the client calls `POST /api/sync` which broadcasts an `UPDATE` event to all other connected clients.
-- Other clients receiving the update see a conflict warning dialog ("Editing Clash Detected") and their cache is invalidated to refetch latest data
-- The syncing client suppresses its own conflict dialog for 2 seconds using `suppressConflict()` in `use-ws.ts`
-- Last-write-wins conflict resolution (acceptable for this use case)
-- All mutations use optimistic updates with temp IDs replaced by server-returned real IDs in `onSuccess`
+### Manual Sync
+- **Manual sync model**: Users click a Sync button (RefreshCw icon) in the dashboard header to fetch the latest data from the server
+- Clash detection uses `updatedAt` and `updatedBy` columns on the `families` table — if another user modified a family since the last sync, a prompt appears asking the user to either "Accept Their Changes" (refetch) or "Keep My Changes" (dismiss)
+- All mutations still use optimistic updates with temp IDs replaced by server-returned real IDs in `onSuccess`
+- Every mutation (family create/update/delete, person create/update/delete) updates the parent family's `updatedAt` and `updatedBy` fields
 
 ### Build & Deployment
 - **Dev**: `tsx server/index.ts` with Vite dev server middleware (HMR at `/vite-hmr`)
@@ -78,7 +76,6 @@ Preferred communication style: Simple, everyday language.
 
 ### Key NPM Packages
 - `express` v5 — HTTP server
-- `ws` — WebSocket server for real-time sync
 - `drizzle-orm` + `drizzle-kit` — Database ORM and migration tooling
 - `drizzle-zod` — Auto-generate Zod schemas from Drizzle table definitions
 - `@tanstack/react-query` — Server state management with caching

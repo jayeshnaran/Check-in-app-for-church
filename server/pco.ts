@@ -247,7 +247,8 @@ async function setFieldDatum(
 async function createHousehold(
   token: string,
   name: string,
-  primaryContactId: string
+  primaryContactId: string,
+  allPersonIds: string[]
 ): Promise<string | null> {
   const res = await fetch(`${PCO_API_BASE}/households`, {
     method: "POST",
@@ -268,6 +269,12 @@ async function createHousehold(
               id: primaryContactId,
             },
           },
+          people: {
+            data: allPersonIds.map(id => ({
+              type: "Person",
+              id,
+            })),
+          },
         },
       },
     }),
@@ -283,11 +290,16 @@ async function createHousehold(
   return data.data.id;
 }
 
-async function addPersonToHousehold(
+async function addHouseholdMembership(
   token: string,
   householdId: string,
-  personId: string
+  personId: string,
+  personType: string
 ): Promise<boolean> {
+  const householdRole = (personType === "man" || personType === "woman")
+    ? "parent_guardian"
+    : "child";
+
   const res = await fetch(`${PCO_API_BASE}/households/${householdId}/household_memberships`, {
     method: "POST",
     headers: {
@@ -298,7 +310,8 @@ async function addPersonToHousehold(
       data: {
         type: "HouseholdMembership",
         attributes: {
-          person_name: "",
+          pending: false,
+          household_role: householdRole,
         },
         relationships: {
           person: {
@@ -314,7 +327,7 @@ async function addPersonToHousehold(
 
   if (!res.ok) {
     const errText = await res.text();
-    console.error(`PCO add person ${personId} to household ${householdId} failed:`, errText);
+    console.error(`PCO add household membership for person ${personId} failed:`, errText);
     return false;
   }
 
@@ -341,7 +354,7 @@ export async function pushFamilyToPco(
   let pushed = 0;
   let failed = 0;
   const results: any[] = [];
-  const createdPcoIds: string[] = [];
+  const createdPeople: Array<{ pcoId: string; type: string }> = [];
   let primaryContactId: string | null = null;
 
   for (const person of people) {
@@ -354,7 +367,7 @@ export async function pushFamilyToPco(
     const result = await createPersonInPco(church, person, familyStatus);
     if (result) {
       pushed++;
-      createdPcoIds.push(result.id);
+      createdPeople.push({ pcoId: result.id, type: person.type });
       results.push({ person, pcoId: result.id });
 
       if (!primaryContactId && (person.type === "man" || person.type === "woman")) {
@@ -366,12 +379,13 @@ export async function pushFamilyToPco(
     }
   }
 
-  if (createdPcoIds.length > 1 && familyName) {
-    const contactId = primaryContactId || createdPcoIds[0];
-    const householdId = await createHousehold(token, familyName, contactId);
+  if (createdPeople.length > 1 && familyName) {
+    const contactId = primaryContactId || createdPeople[0].pcoId;
+    const allIds = createdPeople.map(p => p.pcoId);
+    const householdId = await createHousehold(token, familyName, contactId, allIds);
     if (householdId) {
-      for (const pcoId of createdPcoIds) {
-        await addPersonToHousehold(token, householdId, pcoId);
+      for (const cp of createdPeople) {
+        await addHouseholdMembership(token, householdId, cp.pcoId, cp.type);
       }
     }
   }

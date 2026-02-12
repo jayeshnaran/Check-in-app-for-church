@@ -10,6 +10,8 @@ export const families = pgTable("families", {
   name: text("name"), 
   status: text("status").default("newcomer"), // 'newcomer' or 'visitor'
   notes: text("notes"),
+  serviceDate: text("service_date"), // YYYY-MM-DD
+  serviceTime: text("service_time"), // e.g. "09:30"
   createdAt: timestamp("created_at").defaultNow(),
 });
 

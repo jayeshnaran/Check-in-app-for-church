@@ -6,6 +6,8 @@ import { EditPersonDialog } from "@/components/EditPersonDialog";
 import { type Person, type Family } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +27,18 @@ export default function Dashboard() {
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
   const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
+  const [session, setSession] = useState<{ date: string, time: string } | null>(() => {
+    const saved = localStorage.getItem("service_session");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const getRecentSunday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay()); // Sunday
+    return d.toISOString().split('T')[0];
+  };
+
+  const serviceTimes = JSON.parse(localStorage.getItem("service_times") || '["09:30"]');
 
   // Re-check offline mode when component mounts or focus returns
   useEffect(() => {
@@ -66,7 +80,11 @@ export default function Dashboard() {
 
   const handleAddFamily = () => {
     createFamily.mutate(
-      { status: 'newcomer' }, 
+      { 
+        status: 'newcomer',
+        serviceDate: session?.date,
+        serviceTime: session?.time 
+      }, 
       {
         onSuccess: (newFamily) => {
           // Immediately add a default person to the new family
@@ -145,6 +163,9 @@ export default function Dashboard() {
 
   const filteredFamilies = useMemo(() => {
     return families?.filter(f => {
+      // Only show families for the selected session
+      if (f.serviceDate !== session?.date || f.serviceTime !== session?.time) return false;
+
       const searchLower = search.toLowerCase();
       const familyNameMatch = f.name?.toLowerCase().includes(searchLower);
       const personMatch = f.people.some(p => 
@@ -162,6 +183,66 @@ export default function Dashboard() {
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground font-medium">Loading families...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+        <Card className="w-full max-w-sm rounded-3xl border-none shadow-xl bg-card p-6 space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-black">Welcome</h2>
+            <p className="text-muted-foreground text-sm">Select service session to begin</p>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Sunday Date</Label>
+              <Input 
+                type="date" 
+                defaultValue={getRecentSunday()}
+                id="sunday-date"
+                className="rounded-xl h-11 bg-muted/50 border-none"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Service Time</Label>
+              <Select defaultValue={serviceTimes[0]} onValueChange={(val) => {
+                const dateEl = document.getElementById('sunday-date') as HTMLInputElement;
+                const date = dateEl.value;
+                const sessionData = { date, time: val };
+                localStorage.setItem("service_session", JSON.stringify(sessionData));
+                setSession(sessionData);
+              }}>
+                <SelectTrigger className="rounded-xl h-11 bg-muted/50 border-none">
+                  <SelectValue placeholder="Select time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {serviceTimes.map((t: string) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button 
+              className="w-full h-12 rounded-xl font-bold text-lg"
+              onClick={() => {
+                const dateEl = document.getElementById('sunday-date') as HTMLInputElement;
+                const date = dateEl.value;
+                // Get the value from the select if possible, otherwise use default
+                const time = session?.time || serviceTimes[0];
+                const sessionData = { date, time };
+                localStorage.setItem("service_session", JSON.stringify(sessionData));
+                setSession(sessionData);
+              }}
+            >
+              Start Check-in
+            </Button>
+          </div>
+        </Card>
       </div>
     );
   }

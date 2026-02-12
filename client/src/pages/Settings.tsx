@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Save } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
 export default function Settings() {
@@ -13,11 +14,14 @@ export default function Settings() {
   const [apiKey, setApiKey] = useState(localStorage.getItem("pco_api_key") || "");
   const [appId, setAppId] = useState(localStorage.getItem("pco_app_id") || "");
   const [offlineMode, setOfflineMode] = useState(localStorage.getItem("offline_mode") === "true");
+  const [serviceTimes, setServiceTimes] = useState<string[]>(JSON.parse(localStorage.getItem("service_times") || '["09:30"]'));
+  const [newTime, setNewTime] = useState("");
 
   const handleSave = () => {
     localStorage.setItem("pco_api_key", apiKey);
     localStorage.setItem("pco_app_id", appId);
     localStorage.setItem("offline_mode", offlineMode.toString());
+    localStorage.setItem("service_times", JSON.stringify(serviceTimes));
     toast({
       title: "Settings Saved",
       description: "Configuration has been updated.",
@@ -26,6 +30,17 @@ export default function Settings() {
     setTimeout(() => {
       window.location.href = "/";
     }, 500);
+  };
+
+  const addTime = () => {
+    if (newTime && !serviceTimes.includes(newTime)) {
+      setServiceTimes([...serviceTimes, newTime].sort());
+      setNewTime("");
+    }
+  };
+
+  const removeTime = (time: string) => {
+    setServiceTimes(serviceTimes.filter(t => t !== time));
   };
 
   return (
@@ -39,6 +54,38 @@ export default function Settings() {
           </Link>
           <h1 className="text-2xl font-black tracking-tight">Settings</h1>
         </div>
+
+        <Card className="rounded-3xl border-none shadow-sm bg-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Service Times</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <Input 
+                type="time" 
+                value={newTime} 
+                onChange={(e) => setNewTime(e.target.value)}
+                className="rounded-xl bg-muted/50 border-none h-11"
+              />
+              <Button onClick={addTime} variant="secondary" className="rounded-xl h-11">Add</Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {serviceTimes.map(time => (
+                <Badge key={time} variant="secondary" className="pl-3 pr-1 py-1 gap-1 rounded-full">
+                  {time}
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-4 w-4 rounded-full p-0" 
+                    onClick={() => removeTime(time)}
+                  >
+                    ×
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="rounded-3xl border-none shadow-sm bg-card">
           <CardHeader>

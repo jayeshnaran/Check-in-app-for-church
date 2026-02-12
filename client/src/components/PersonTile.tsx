@@ -42,8 +42,9 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
     <div className="relative group">
       <button
         onClick={handleClick}
+        tabIndex={-1}
         className={cn(
-          "w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all duration-200 border-2",
+          "w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all duration-200 border-2 focus:outline-none",
           "hover:scale-[1.02] active:scale-[0.98]",
           mode === "unlocked" 
             ? "bg-white border-dashed border-primary/30 hover:border-primary hover:bg-primary/5" 

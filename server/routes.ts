@@ -23,8 +23,17 @@ export async function registerRoutes(
   }
 
   app.get(api.families.list.path, async (req, res) => {
-    const families = await storage.getFamilies();
-    res.json(families);
+    const { serviceDate, serviceTime } = req.query;
+    const allFamilies = await storage.getFamilies();
+    
+    if (serviceDate && serviceTime) {
+      const filtered = allFamilies.filter(f => 
+        f.serviceDate === serviceDate && f.serviceTime === serviceTime
+      );
+      return res.json(filtered);
+    }
+    
+    res.json(allFamilies);
   });
 
   app.post(api.families.create.path, async (req, res) => {

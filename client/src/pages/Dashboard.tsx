@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson } from "@/hooks/use-families";
+import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson, ServiceSessionContext } from "@/hooks/use-families";
 import { useWebSocket } from "@/hooks/use-ws";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
 import { EditPersonDialog } from "@/components/EditPersonDialog";
@@ -17,33 +17,90 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 
+function getRecentSunday() {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().split('T')[0];
+}
+
 export default function Dashboard() {
-  // Connect WS
-  useWebSocket();
-  const { toast } = useToast();
-  
-  // State
-  const [mode, setMode] = useState<"locked" | "unlocked">("locked");
-  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
-  const [search, setSearch] = useState("");
-  const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
   const [session, setSession] = useState<{ date: string, time: string } | null>(() => {
     const saved = localStorage.getItem("service_session");
     return saved ? JSON.parse(saved) : null;
   });
 
-  const getRecentSunday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay()); // Sunday
-    return d.toISOString().split('T')[0];
-  };
-
   const serviceTimes = JSON.parse(localStorage.getItem("service_times") || '["09:30"]');
-
   const [selectedDate, setSelectedDate] = useState(getRecentSunday());
   const [selectedTime, setSelectedTime] = useState(serviceTimes[0]);
 
-  // Re-check offline mode when component mounts or focus returns
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+        <Card className="w-full max-w-sm rounded-3xl border-none shadow-xl bg-card p-6 space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-black">Welcome</h2>
+            <p className="text-muted-foreground text-sm">Select service session to begin</p>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Sunday Date</Label>
+              <Input 
+                type="date" 
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="rounded-xl h-11 bg-muted/50 border-none"
+                data-testid="input-sunday-date"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Service Time</Label>
+              <Select value={selectedTime} onValueChange={setSelectedTime}>
+                <SelectTrigger className="rounded-xl h-11 bg-muted/50 border-none" data-testid="select-service-time">
+                  <SelectValue placeholder="Select time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {serviceTimes.map((t: string) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button 
+              className="w-full h-12 rounded-xl font-bold text-lg"
+              data-testid="button-start-checkin"
+              onClick={() => {
+                const sessionData = { date: selectedDate, time: selectedTime };
+                localStorage.setItem("service_session", JSON.stringify(sessionData));
+                setSession(sessionData);
+              }}
+            >
+              Start Check-in
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <ServiceSessionContext.Provider value={session}>
+      <DashboardContent session={session} setSession={setSession} />
+    </ServiceSessionContext.Provider>
+  );
+}
+
+function DashboardContent({ session, setSession }: { session: { date: string, time: string }, setSession: (s: { date: string, time: string } | null) => void }) {
+  useWebSocket();
+  const { toast } = useToast();
+  
+  const [mode, setMode] = useState<"locked" | "unlocked">("locked");
+  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [search, setSearch] = useState("");
+  const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
+
   useEffect(() => {
     const checkOffline = () => {
       setIsOffline(localStorage.getItem("offline_mode") === "true");
@@ -52,8 +109,7 @@ export default function Dashboard() {
     return () => window.removeEventListener('focus', checkOffline);
   }, []);
 
-  // Queries & Mutations
-  const { data: families, isLoading } = useFamilies();
+  const { data: families, isLoading } = useFamilies(session.date, session.time);
   const createFamily = useCreateFamily();
   const updateFamily = useUpdateFamily();
   const deleteFamily = useDeleteFamily();
@@ -166,21 +222,14 @@ export default function Dashboard() {
 
   const filteredFamilies = useMemo(() => {
     return families?.filter(f => {
-      // Precise session filtering: date and time must match
-      const familyDate = f.serviceDate || "";
-      const familyTime = f.serviceTime || "";
-      const sessionDate = session?.date || "";
-      const sessionTime = session?.time || "";
-      
-      if (familyDate !== sessionDate || familyTime !== sessionTime) return false;
-
+      if (!search) return true;
       const searchLower = search.toLowerCase();
       const familyNameMatch = f.name?.toLowerCase().includes(searchLower);
       const personMatch = f.people.some(p => 
         p.firstName?.toLowerCase().includes(searchLower) || 
         p.lastName?.toLowerCase().includes(searchLower)
       );
-      return !search || familyNameMatch || personMatch;
+      return familyNameMatch || personMatch;
     });
   }, [families, search]);
 
@@ -191,56 +240,6 @@ export default function Dashboard() {
           <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground font-medium">Loading families...</p>
         </div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <Card className="w-full max-w-sm rounded-3xl border-none shadow-xl bg-card p-6 space-y-6">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-black">Welcome</h2>
-            <p className="text-muted-foreground text-sm">Select service session to begin</p>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Sunday Date</Label>
-              <Input 
-                type="date" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="rounded-xl h-11 bg-muted/50 border-none"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Service Time</Label>
-              <Select value={selectedTime} onValueChange={setSelectedTime}>
-                <SelectTrigger className="rounded-xl h-11 bg-muted/50 border-none">
-                  <SelectValue placeholder="Select time" />
-                </SelectTrigger>
-                <SelectContent>
-                  {serviceTimes.map((t: string) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button 
-              className="w-full h-12 rounded-xl font-bold text-lg"
-              onClick={() => {
-                const sessionData = { date: selectedDate, time: selectedTime };
-                localStorage.setItem("service_session", JSON.stringify(sessionData));
-                setSession(sessionData);
-              }}
-            >
-              Start Check-in
-            </Button>
-          </div>
-        </Card>
       </div>
     );
   }

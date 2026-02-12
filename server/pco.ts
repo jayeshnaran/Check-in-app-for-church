@@ -50,25 +50,31 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   const config = getPcoConfig();
   if (!config) return null;
 
+  console.log("PCO token exchange: sending request to", PCO_TOKEN_URL);
+  console.log("PCO token exchange: redirect_uri =", config.redirectUri);
+
+  const formBody = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    redirect_uri: config.redirectUri,
+  });
+
   const tokenRes = await fetch(PCO_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: config.redirectUri,
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-    }),
+    body: formBody,
   });
 
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
-    console.error("PCO token exchange failed:", errText);
+    console.error("PCO token exchange failed (status " + tokenRes.status + "):", errText);
     return null;
   }
 
   const tokenData = await tokenRes.json();
+  console.log("PCO token exchange succeeded, got access_token:", !!tokenData.access_token);
 
   const orgRes = await fetch(`${PCO_API_BASE}/`, {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
@@ -78,6 +84,8 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   if (orgRes.ok) {
     const orgData = await orgRes.json();
     organizationId = orgData?.data?.id || orgData?.links?.organization || "";
+  } else {
+    console.error("PCO org fetch failed (status " + orgRes.status + "):", await orgRes.text());
   }
 
   return {
@@ -101,8 +109,8 @@ async function refreshTokenIfNeeded(church: Church): Promise<string | null> {
 
   const tokenRes = await fetch(PCO_TOKEN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       grant_type: "refresh_token",
       refresh_token: church.pcoRefreshToken,
       client_id: config.clientId,
@@ -111,7 +119,7 @@ async function refreshTokenIfNeeded(church: Church): Promise<string | null> {
   });
 
   if (!tokenRes.ok) {
-    console.error("PCO token refresh failed:", await tokenRes.text());
+    console.error("PCO token refresh failed (status " + tokenRes.status + "):", await tokenRes.text());
     return null;
   }
 

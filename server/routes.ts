@@ -302,6 +302,17 @@ export async function registerRoutes(
     });
   });
 
+  const pcoOAuthPending = new Map<string, { churchId: number; userId: string; createdAt: number }>();
+
+  setInterval(() => {
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    const keys = Array.from(pcoOAuthPending.keys());
+    for (const key of keys) {
+      const val = pcoOAuthPending.get(key);
+      if (val && val.createdAt < tenMinutesAgo) pcoOAuthPending.delete(key);
+    }
+  }, 60 * 1000);
+
   app.get('/auth/pco', isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const membership = await storage.getUserMembership(userId);
@@ -310,49 +321,44 @@ export async function registerRoutes(
     }
 
     const state = generateOAuthState();
-    (req as any).session = (req as any).session || {};
-    (req as any).session.pcoOAuthState = state;
-    (req as any).session.pcoChurchId = membership.churchId;
+    pcoOAuthPending.set(state, {
+      churchId: membership.churchId,
+      userId,
+      createdAt: Date.now(),
+    });
 
     const url = getOAuthUrl(state);
     if (!url) {
+      pcoOAuthPending.delete(state);
       return res.status(500).send("Planning Center is not configured. Set PCO_CLIENT_ID, PCO_CLIENT_SECRET, and PCO_REDIRECT_URI.");
     }
 
     res.redirect(url);
   });
 
-  app.get('/auth/pco/callback', isAuthenticated, async (req: any, res) => {
+  app.get('/auth/pco/callback', async (req: any, res) => {
     const { code, state } = req.query;
+    console.log("PCO callback received - code:", !!code, "state:", !!state);
 
-    const sessionState = req.session?.pcoOAuthState;
-    const churchId = req.session?.pcoChurchId;
-
-    if (!state || !sessionState || state !== sessionState) {
-      delete req.session?.pcoOAuthState;
-      delete req.session?.pcoChurchId;
-      return res.status(400).send("Invalid OAuth state. Please try connecting again.");
+    if (!state || typeof state !== "string") {
+      return res.redirect("/settings?pco=error");
     }
 
-    if (!churchId) {
-      delete req.session?.pcoOAuthState;
-      return res.status(400).send("No church context. Please try connecting again.");
+    const pending = pcoOAuthPending.get(state);
+    if (!pending) {
+      console.error("PCO callback: no pending OAuth state found for:", state);
+      return res.redirect("/settings?pco=error");
     }
 
-    const userId = req.user.claims.sub;
-    const membership = await storage.getUserMembership(userId);
-    if (!membership || membership.role !== "admin" || membership.churchId !== churchId) {
-      delete req.session?.pcoOAuthState;
-      delete req.session?.pcoChurchId;
-      return res.status(403).send("Admin access required for the correct church.");
-    }
+    pcoOAuthPending.delete(state);
+
+    const { churchId, userId } = pending;
+    console.log("PCO callback: matched state for churchId:", churchId, "userId:", userId);
 
     try {
       const tokens = await exchangeCodeForTokens(code as string);
       if (!tokens) {
-        delete req.session?.pcoOAuthState;
-        delete req.session?.pcoChurchId;
-        return res.status(500).send("Failed to exchange authorization code. Please try again.");
+        return res.redirect("/settings?pco=error");
       }
 
       await storage.updateChurch(churchId, {
@@ -363,14 +369,9 @@ export async function registerRoutes(
         pcoConnectedAt: new Date(),
       } as any);
 
-      delete req.session.pcoOAuthState;
-      delete req.session.pcoChurchId;
-
       res.redirect("/settings?pco=connected");
     } catch (err) {
       console.error("PCO callback error:", err);
-      delete req.session?.pcoOAuthState;
-      delete req.session?.pcoChurchId;
       res.redirect("/settings?pco=error");
     }
   });

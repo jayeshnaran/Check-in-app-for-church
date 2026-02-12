@@ -138,15 +138,26 @@ export async function getValidToken(church: Church): Promise<string | null> {
   return refreshTokenIfNeeded(church);
 }
 
+const PCO_FIELD_DEF_STATUS = "781090";
+const PCO_FIELD_DEF_AGE_BRACKET = "211900305";
+
 export async function createPersonInPco(
   church: Church,
-  person: { firstName?: string | null; lastName?: string | null }
+  person: {
+    firstName?: string | null;
+    lastName?: string | null;
+    type: string;
+    ageBracket?: string | null;
+  },
+  familyStatus?: string | null
 ): Promise<{ id: string; firstName: string; lastName: string } | null> {
   const token = await getValidToken(church);
   if (!token) return null;
 
   const firstName = person.firstName || "Unknown";
   const lastName = person.lastName || "";
+  const gender = (person.type === "man" || person.type === "boy") ? "M" : "F";
+  const child = (person.type === "boy" || person.type === "girl");
 
   const res = await fetch(`${PCO_API_BASE}/people`, {
     method: "POST",
@@ -160,6 +171,8 @@ export async function createPersonInPco(
         attributes: {
           first_name: firstName,
           last_name: lastName,
+          gender,
+          child,
         },
       },
     }),
@@ -172,20 +185,164 @@ export async function createPersonInPco(
   }
 
   const data = await res.json();
+  const pcoPersonId = data.data.id;
+
+  if (familyStatus) {
+    const year = new Date().getFullYear();
+    const statusLabel = familyStatus === "visitor" ? "Visitor" : "Newcomer";
+    const statusValue = `${year} ${statusLabel}`;
+    await setFieldDatum(token, pcoPersonId, PCO_FIELD_DEF_STATUS, statusValue);
+  }
+
+  if (person.ageBracket) {
+    await setFieldDatum(token, pcoPersonId, PCO_FIELD_DEF_AGE_BRACKET, person.ageBracket);
+  }
+
   return {
-    id: data.data.id,
+    id: pcoPersonId,
     firstName: data.data.attributes.first_name,
     lastName: data.data.attributes.last_name,
   };
 }
 
+async function setFieldDatum(
+  token: string,
+  personId: string,
+  fieldDefinitionId: string,
+  value: string
+): Promise<boolean> {
+  const res = await fetch(`${PCO_API_BASE}/people/${personId}/field_data`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      data: {
+        type: "FieldDatum",
+        attributes: {
+          value,
+        },
+        relationships: {
+          field_definition: {
+            data: {
+              type: "FieldDefinition",
+              id: fieldDefinitionId,
+            },
+          },
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`PCO set field data failed (field ${fieldDefinitionId}, person ${personId}):`, errText);
+    return false;
+  }
+
+  return true;
+}
+
+async function createHousehold(
+  token: string,
+  name: string,
+  primaryContactId: string
+): Promise<string | null> {
+  const res = await fetch(`${PCO_API_BASE}/households`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      data: {
+        type: "Household",
+        attributes: {
+          name: `${name} Household`,
+        },
+        relationships: {
+          primary_contact: {
+            data: {
+              type: "Person",
+              id: primaryContactId,
+            },
+          },
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("PCO create household failed:", errText);
+    return null;
+  }
+
+  const data = await res.json();
+  return data.data.id;
+}
+
+async function addPersonToHousehold(
+  token: string,
+  householdId: string,
+  personId: string
+): Promise<boolean> {
+  const res = await fetch(`${PCO_API_BASE}/households/${householdId}/household_memberships`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      data: {
+        type: "HouseholdMembership",
+        attributes: {
+          person_name: "",
+        },
+        relationships: {
+          person: {
+            data: {
+              type: "Person",
+              id: personId,
+            },
+          },
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`PCO add person ${personId} to household ${householdId} failed:`, errText);
+    return false;
+  }
+
+  return true;
+}
+
+interface PcoPushPerson {
+  firstName?: string | null;
+  lastName?: string | null;
+  type: string;
+  ageBracket?: string | null;
+  status?: string | null;
+}
+
 export async function pushFamilyToPco(
   church: Church,
-  people: Array<{ firstName?: string | null; lastName?: string | null; type: string }>
+  familyName: string,
+  familyStatus: string | null,
+  people: PcoPushPerson[]
 ): Promise<{ pushed: number; failed: number; results: any[] }> {
+  const token = await getValidToken(church);
+  if (!token) return { pushed: 0, failed: people.length, results: [{ error: "Could not get valid token" }] };
+
   let pushed = 0;
   let failed = 0;
   const results: any[] = [];
+  const createdPcoIds: string[] = [];
+  let primaryContactId: string | null = null;
 
   for (const person of people) {
     if (!person.firstName && !person.lastName) {
@@ -194,13 +351,30 @@ export async function pushFamilyToPco(
       continue;
     }
 
-    const result = await createPersonInPco(church, person);
+    const result = await createPersonInPco(church, person, familyStatus);
     if (result) {
       pushed++;
+      createdPcoIds.push(result.id);
       results.push({ person, pcoId: result.id });
+
+      if (!primaryContactId && (person.type === "man" || person.type === "woman")) {
+        primaryContactId = result.id;
+      }
     } else {
       failed++;
       results.push({ person, error: "API call failed" });
+    }
+  }
+
+  if (createdPcoIds.length > 1 && familyName) {
+    const contactId = primaryContactId || createdPcoIds[0];
+    const householdId = await createHousehold(token, familyName, contactId);
+    if (householdId) {
+      for (const pcoId of createdPcoIds) {
+        if (pcoId !== contactId) {
+          await addPersonToHousehold(token, householdId, pcoId);
+        }
+      }
     }
   }
 

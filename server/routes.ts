@@ -428,7 +428,12 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Family not found" });
     }
 
-    const result = await pushFamilyToPco(church, familyWithPeople.people);
+    const result = await pushFamilyToPco(
+      church,
+      familyWithPeople.name || "Unknown",
+      familyWithPeople.status,
+      familyWithPeople.people
+    );
     res.json(result);
   });
 
@@ -451,15 +456,30 @@ export async function registerRoutes(
       );
     }
 
-    const allPeople = familiesToPush.flatMap(f => f.people);
-    const namedPeople = allPeople.filter(p => p.firstName || p.lastName);
-
-    if (namedPeople.length === 0) {
-      return res.json({ pushed: 0, failed: 0, results: [], message: "No people with names to push" });
+    if (familiesToPush.length === 0) {
+      return res.json({ pushed: 0, failed: 0, results: [], message: "No families to push" });
     }
 
-    const result = await pushFamilyToPco(church, namedPeople);
-    res.json(result);
+    let totalPushed = 0;
+    let totalFailed = 0;
+    const allResults: any[] = [];
+
+    for (const family of familiesToPush) {
+      const namedPeople = family.people.filter(p => p.firstName || p.lastName);
+      if (namedPeople.length === 0) continue;
+
+      const result = await pushFamilyToPco(
+        church,
+        family.name || "Unknown",
+        family.status,
+        namedPeople
+      );
+      totalPushed += result.pushed;
+      totalFailed += result.failed;
+      allResults.push(...result.results);
+    }
+
+    res.json({ pushed: totalPushed, failed: totalFailed, results: allResults });
   });
 
   return httpServer;

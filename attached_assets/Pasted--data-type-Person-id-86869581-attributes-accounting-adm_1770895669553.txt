@@ -1,0 +1,106 @@
+{
+  "data": {
+    "type": "Person",
+    "id": "86869581",
+    "attributes": {
+      "accounting_administrator": true,
+      "anniversary": "2015-01-24",
+      "avatar": "https://avatars.planningcenteronline.com/uploads/initials/JN.png",
+      "birthdate": "1988-10-16",
+      "can_create_forms": true,
+      "can_email_lists": true,
+      "child": false,
+      "created_at": "2021-01-05T05:44:50Z",
+      "demographic_avatar_url": "https://avatars.planningcenteronline.com/uploads/initials/JN.png",
+      "directory_status": "participant",
+      "first_name": "Jayesh",
+      "gender": "M",
+      "given_name": null,
+      "grade": null,
+      "graduation_year": null,
+      "inactivated_at": null,
+      "last_name": "Naran",
+      "login_identifier": "jayeshnaran@gmail.com",
+      "medical_notes": null,
+      "membership": "Member (Communicant)",
+      "middle_name": null,
+      "name": "Jayesh Naran",
+      "nickname": null,
+      "passed_background_check": false,
+      "people_permissions": "Manager",
+      "remote_id": null,
+      "resource_permission_flags": {
+        "can_access_workflows": true
+      },
+      "school_type": null,
+      "site_administrator": true,
+      "status": "active",
+      "updated_at": "2026-01-27T03:25:30Z"
+    },
+    "relationships": {
+      "primary_campus": {
+        "data": {
+          "type": "PrimaryCampus",
+          "id": "65268"
+        }
+      },
+      "gender": {
+        "data": {
+          "type": "Gender",
+          "id": "7069840"
+        }
+      }
+    },
+    "links": {
+      "addresses": "https://api.planningcenteronline.com/people/v2/people/86869581/addresses",
+      "apps": "https://api.planningcenteronline.com/people/v2/people/86869581/apps",
+      "connected_people": "https://api.planningcenteronline.com/people/v2/people/86869581/connected_people",
+      "emails": "https://api.planningcenteronline.com/people/v2/people/86869581/emails",
+      "field_data": "https://api.planningcenteronline.com/people/v2/people/86869581/field_data",
+      "household_memberships": "https://api.planningcenteronline.com/people/v2/people/86869581/household_memberships",
+      "households": "https://api.planningcenteronline.com/people/v2/people/86869581/households",
+      "inactive_reason": null,
+      "marital_status": "https://api.planningcenteronline.com/people/v2/marital_statuses/5563624",
+      "message_groups": "https://api.planningcenteronline.com/people/v2/people/86869581/message_groups",
+      "messages": "https://api.planningcenteronline.com/people/v2/people/86869581/messages",
+      "name_prefix": null,
+      "name_suffix": null,
+      "notes": "https://api.planningcenteronline.com/people/v2/people/86869581/notes",
+      "organization": "https://api.planningcenteronline.com/people/v2/people/86869581/organization",
+      "person_apps": "https://api.planningcenteronline.com/people/v2/people/86869581/person_apps",
+      "phone_numbers": "https://api.planningcenteronline.com/people/v2/people/86869581/phone_numbers",
+      "platform_notifications": "https://api.planningcenteronline.com/people/v2/people/86869581/platform_notifications",
+      "primary_campus": "https://api.planningcenteronline.com/people/v2/campuses/65268",
+      "school": null,
+      "social_profiles": "https://api.planningcenteronline.com/people/v2/people/86869581/social_profiles",
+      "workflow_cards": "https://api.planningcenteronline.com/people/v2/people/86869581/workflow_cards",
+      "workflow_shares": "https://api.planningcenteronline.com/people/v2/people/86869581/workflow_shares",
+      "self": "https://api.planningcenteronline.com/people/v2/people/86869581",
+      "html": "https://people.planningcenteronline.com/people/AC86869581"
+    }
+  },
+  "included": [],
+  "meta": {
+    "can_include": [
+      "addresses",
+      "emails",
+      "field_data",
+      "households",
+      "inactive_reason",
+      "marital_status",
+      "name_prefix",
+      "name_suffix",
+      "organization",
+      "person_apps",
+      "phone_numbers",
+      "platform_notifications",
+      "primary_campus",
+      "school",
+      "social_profiles"
+    ],
+    "parent": {
+      "id": "374634",
+      "type": "Organization"
+    }
+  }
+}

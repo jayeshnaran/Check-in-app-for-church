@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User } from "lucide-react";
+import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User, Link2, Unlink, CheckCircle2, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,45 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/membership/pending"] });
       toast({ title: "Rejected", description: "Request has been removed." });
+    },
+  });
+
+  const { data: pcoStatus, isLoading: pcoLoading } = useQuery<{
+    configured: boolean;
+    connected: boolean;
+    organizationId: string | null;
+    connectedAt: string | null;
+  }>({
+    queryKey: ["/api/pco/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/pco/status", { credentials: "include" });
+      if (!res.ok) return { configured: false, connected: false, organizationId: null, connectedAt: null };
+      return res.json();
+    },
+    enabled: isAdmin,
+  });
+
+  const disconnectPco = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/pco/disconnect");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pco/status"] });
+      toast({ title: "Disconnected", description: "Planning Center has been disconnected." });
+    },
+  });
+
+  const testPco = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/pco/test");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.connected) {
+        toast({ title: "Connection OK", description: "Planning Center is working correctly." });
+      } else {
+        toast({ title: "Connection Failed", description: "Could not reach Planning Center. Try reconnecting.", variant: "destructive" });
+      }
     },
   });
 
@@ -244,6 +283,97 @@ export default function Settings() {
                   </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {isAdmin && (
+          <Card className="rounded-3xl border-none shadow-sm bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Link2 className="w-5 h-5 text-primary" />
+                Planning Center
+                {pcoStatus?.connected && (
+                  <Badge variant="secondary" className="ml-auto" data-testid="badge-pco-connected">
+                    Connected
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {pcoLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : !pcoStatus?.configured ? (
+                <div className="p-3 rounded-xl bg-muted/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      Planning Center integration requires setup. Contact your app administrator to configure the PCO credentials.
+                    </p>
+                  </div>
+                </div>
+              ) : pcoStatus?.connected ? (
+                <>
+                  <div className="p-3 rounded-xl bg-muted/30 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                      <p className="text-sm">Connected to Planning Center</p>
+                    </div>
+                    {pcoStatus.organizationId && (
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Org ID: {pcoStatus.organizationId}
+                      </p>
+                    )}
+                    {pcoStatus.connectedAt && (
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Connected: {new Date(pcoStatus.connectedAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => testPco.mutate()}
+                      disabled={testPco.isPending}
+                      data-testid="button-test-pco"
+                    >
+                      {testPco.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Test Connection"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => disconnectPco.mutate()}
+                      disabled={disconnectPco.isPending}
+                      data-testid="button-disconnect-pco"
+                    >
+                      {disconnectPco.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                        <>
+                          <Unlink className="w-4 h-4 mr-1" />
+                          Disconnect
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Connect your church's Planning Center account to automatically push newcomer and visitor data to PCO People.
+                  </p>
+                  <Button
+                    className="w-full rounded-xl"
+                    onClick={() => { window.location.href = "/auth/pco"; }}
+                    data-testid="button-connect-pco"
+                  >
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Connect to Planning Center
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

@@ -6,6 +6,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { WS_EVENTS } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { isPcoConfigured, generateOAuthState, getOAuthUrl, exchangeCodeForTokens, pushFamilyToPco, testPcoConnection } from "./pco";
 
 async function getUserChurchId(req: any): Promise<number | null> {
   const userId = req.user?.claims?.sub;
@@ -282,6 +283,182 @@ export async function registerRoutes(
   app.post('/api/sync', isAuthenticated, async (_req, res) => {
     broadcast(WS_EVENTS.UPDATE);
     res.json({ ok: true });
+  });
+
+  // === PLANNING CENTER OAUTH ROUTES ===
+
+  app.get('/api/pco/status', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const church = await storage.getChurch(churchId);
+    if (!church) return res.status(404).json({ message: "Church not found" });
+
+    res.json({
+      configured: isPcoConfigured(),
+      connected: !!church.pcoAccessToken,
+      organizationId: church.pcoOrganizationId || null,
+      connectedAt: church.pcoConnectedAt || null,
+    });
+  });
+
+  app.get('/auth/pco', isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const membership = await storage.getUserMembership(userId);
+    if (!membership || membership.role !== "admin") {
+      return res.status(403).send("Admin access required");
+    }
+
+    const state = generateOAuthState();
+    (req as any).session = (req as any).session || {};
+    (req as any).session.pcoOAuthState = state;
+    (req as any).session.pcoChurchId = membership.churchId;
+
+    const url = getOAuthUrl(state);
+    if (!url) {
+      return res.status(500).send("Planning Center is not configured. Set PCO_CLIENT_ID, PCO_CLIENT_SECRET, and PCO_REDIRECT_URI.");
+    }
+
+    res.redirect(url);
+  });
+
+  app.get('/auth/pco/callback', isAuthenticated, async (req: any, res) => {
+    const { code, state } = req.query;
+
+    const sessionState = req.session?.pcoOAuthState;
+    const churchId = req.session?.pcoChurchId;
+
+    if (!state || !sessionState || state !== sessionState) {
+      delete req.session?.pcoOAuthState;
+      delete req.session?.pcoChurchId;
+      return res.status(400).send("Invalid OAuth state. Please try connecting again.");
+    }
+
+    if (!churchId) {
+      delete req.session?.pcoOAuthState;
+      return res.status(400).send("No church context. Please try connecting again.");
+    }
+
+    const userId = req.user.claims.sub;
+    const membership = await storage.getUserMembership(userId);
+    if (!membership || membership.role !== "admin" || membership.churchId !== churchId) {
+      delete req.session?.pcoOAuthState;
+      delete req.session?.pcoChurchId;
+      return res.status(403).send("Admin access required for the correct church.");
+    }
+
+    try {
+      const tokens = await exchangeCodeForTokens(code as string);
+      if (!tokens) {
+        delete req.session?.pcoOAuthState;
+        delete req.session?.pcoChurchId;
+        return res.status(500).send("Failed to exchange authorization code. Please try again.");
+      }
+
+      await storage.updateChurch(churchId, {
+        pcoOrganizationId: tokens.organizationId,
+        pcoAccessToken: tokens.accessToken,
+        pcoRefreshToken: tokens.refreshToken,
+        pcoTokenExpiresAt: new Date(Date.now() + tokens.expiresIn * 1000),
+        pcoConnectedAt: new Date(),
+      } as any);
+
+      delete req.session.pcoOAuthState;
+      delete req.session.pcoChurchId;
+
+      res.redirect("/settings?pco=connected");
+    } catch (err) {
+      console.error("PCO callback error:", err);
+      delete req.session?.pcoOAuthState;
+      delete req.session?.pcoChurchId;
+      res.redirect("/settings?pco=error");
+    }
+  });
+
+  app.post('/api/pco/disconnect', isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const membership = await storage.getUserMembership(userId);
+    if (!membership || membership.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    await storage.updateChurch(membership.churchId, {
+      pcoOrganizationId: null,
+      pcoAccessToken: null,
+      pcoRefreshToken: null,
+      pcoTokenExpiresAt: null,
+      pcoConnectedAt: null,
+    } as any);
+
+    res.json({ ok: true });
+  });
+
+  app.post('/api/pco/test', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const church = await storage.getChurch(churchId);
+    if (!church || !church.pcoAccessToken) {
+      return res.status(400).json({ message: "Planning Center not connected" });
+    }
+
+    const connected = await testPcoConnection(church);
+    res.json({ connected });
+  });
+
+  app.post('/api/pco/push-family/:familyId', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const familyId = Number(req.params.familyId);
+    const family = await storage.getFamily(familyId);
+    if (!family || family.churchId !== churchId) {
+      return res.status(404).json({ message: "Family not found" });
+    }
+
+    const church = await storage.getChurch(churchId);
+    if (!church || !church.pcoAccessToken) {
+      return res.status(400).json({ message: "Planning Center not connected" });
+    }
+
+    const allFamilies = await storage.getFamilies(churchId);
+    const familyWithPeople = allFamilies.find(f => f.id === familyId);
+    if (!familyWithPeople) {
+      return res.status(404).json({ message: "Family not found" });
+    }
+
+    const result = await pushFamilyToPco(church, familyWithPeople.people);
+    res.json(result);
+  });
+
+  app.post('/api/pco/push-all', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const church = await storage.getChurch(churchId);
+    if (!church || !church.pcoAccessToken) {
+      return res.status(400).json({ message: "Planning Center not connected" });
+    }
+
+    const { serviceDate, serviceTime } = req.body;
+    const allFamilies = await storage.getFamilies(churchId);
+
+    let familiesToPush = allFamilies;
+    if (serviceDate && serviceTime) {
+      familiesToPush = allFamilies.filter(
+        f => f.serviceDate === serviceDate && f.serviceTime === serviceTime
+      );
+    }
+
+    const allPeople = familiesToPush.flatMap(f => f.people);
+    const namedPeople = allPeople.filter(p => p.firstName || p.lastName);
+
+    if (namedPeople.length === 0) {
+      return res.json({ pushed: 0, failed: 0, results: [], message: "No people with names to push" });
+    }
+
+    const result = await pushFamilyToPco(church, namedPeople);
+    res.json(result);
   });
 
   return httpServer;

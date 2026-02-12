@@ -92,5 +92,11 @@ Preferred communication style: Simple, everyday language.
 - `@replit/vite-plugin-cartographer` — Dev tooling (dev only)
 - `@replit/vite-plugin-dev-banner` — Dev banner (dev only)
 
-### No External APIs
-- No third-party API integrations currently. The app is self-contained with its own PostgreSQL database and WebSocket server.
+### Planning Center Integration
+- **OAuth 2.0 Authorization Code Flow** for multi-tenant PCO connectivity
+- Each church admin connects their own PCO account via Settings
+- Tokens stored per-church in the `churches` table (pcoAccessToken, pcoRefreshToken, pcoTokenExpiresAt)
+- Automatic token refresh before API calls
+- PCO service module in `server/pco.ts` handles OAuth, token management, and People API
+- Routes: `GET /auth/pco` (OAuth redirect), `GET /auth/pco/callback` (token exchange), `GET /api/pco/status`, `POST /api/pco/disconnect`, `POST /api/pco/test`, `POST /api/pco/push-family/:familyId`, `POST /api/pco/push-all`
+- Required secrets: `PCO_CLIENT_ID`, `PCO_CLIENT_SECRET`, `PCO_REDIRECT_URI`

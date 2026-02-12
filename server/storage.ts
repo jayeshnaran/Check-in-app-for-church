@@ -13,7 +13,7 @@ export interface IStorage {
   createChurch(church: InsertChurch): Promise<Church>;
   getChurch(id: number): Promise<Church | undefined>;
   searchChurches(query: string): Promise<Church[]>;
-  updateChurch(id: number, updates: Partial<InsertChurch>): Promise<Church>;
+  updateChurch(id: number, updates: Partial<Church>): Promise<Church>;
 
   // Church Members
   createChurchMember(member: InsertChurchMember): Promise<ChurchMember>;
@@ -53,7 +53,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(churches).where(ilike(churches.name, `%${query}%`)).limit(10);
   }
 
-  async updateChurch(id: number, updates: Partial<InsertChurch>): Promise<Church> {
+  async updateChurch(id: number, updates: Partial<Church>): Promise<Church> {
     const [updated] = await db.update(churches).set(updates).where(eq(churches.id, id)).returning();
     return updated;
   }

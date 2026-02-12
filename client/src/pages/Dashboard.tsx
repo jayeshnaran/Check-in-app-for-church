@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 function getRecentSunday() {
   const d = new Date();
@@ -182,23 +182,54 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     });
   };
 
-  const handleSync = () => {
+  const [isPushing, setIsPushing] = useState(false);
+
+  const { data: pcoStatus } = useQuery<{ configured: boolean; connected: boolean }>({
+    queryKey: ["/api/pco/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/pco/status", { credentials: "include" });
+      if (!res.ok) return { configured: false, connected: false };
+      return res.json();
+    },
+  });
+
+  const handleSync = async () => {
     if (isOffline) {
       handleExportCSV();
       return;
     }
 
-    toast({ 
-      title: "Syncing...", 
-      description: "Sending data to Planning Center",
-    });
-    // Placeholder for actual sync logic
-    setTimeout(() => {
-      toast({ 
-        title: "Sync Complete", 
-        description: "All records sent to Planning Center",
+    if (!pcoStatus?.connected) {
+      toast({
+        title: "Not Connected",
+        description: "Connect Planning Center in Settings to push data.",
+        variant: "destructive",
       });
-    }, 1500);
+      return;
+    }
+
+    setIsPushing(true);
+    toast({ title: "Pushing to PCO...", description: "Sending people to Planning Center" });
+
+    try {
+      const res = await apiRequest("POST", "/api/pco/push-all", {
+        serviceDate: session.date,
+        serviceTime: session.time,
+      });
+      const result = await res.json();
+      toast({
+        title: "Push Complete",
+        description: `${result.pushed} people sent to PCO${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
+      });
+    } catch {
+      toast({
+        title: "Push Failed",
+        description: "Could not send data to Planning Center. Check your connection in Settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPushing(false);
+    }
   };
 
   const handleExportCSV = () => {
@@ -449,10 +480,20 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
       <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
         <Button
           size="icon"
-          className="h-14 w-14 rounded-full shadow-xl bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+          className="h-14 w-14 rounded-full shadow-xl bg-secondary text-secondary-foreground"
           onClick={handleSync}
+          disabled={isPushing}
+          data-testid="button-sync-pco"
         >
-          {isOffline ? <Download className="w-6 h-6" /> : <Database className="w-6 h-6" />}
+          {isPushing ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : isOffline ? (
+            <Download className="w-6 h-6" />
+          ) : pcoStatus?.connected ? (
+            <Upload className="w-6 h-6" />
+          ) : (
+            <Database className="w-6 h-6" />
+          )}
         </Button>
         {mode === "unlocked" && (
           <motion.div 

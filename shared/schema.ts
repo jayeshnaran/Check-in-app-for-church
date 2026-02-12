@@ -12,6 +12,11 @@ export const churches = pgTable("churches", {
   name: text("name").notNull(),
   description: text("description"),
   logoUrl: text("logo_url"),
+  pcoOrganizationId: text("pco_organization_id"),
+  pcoAccessToken: text("pco_access_token"),
+  pcoRefreshToken: text("pco_refresh_token"),
+  pcoTokenExpiresAt: timestamp("pco_token_expires_at"),
+  pcoConnectedAt: timestamp("pco_connected_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

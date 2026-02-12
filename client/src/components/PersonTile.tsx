@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { type Person } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { User, Users, Baby, UserMinus } from "lucide-react";
@@ -90,15 +91,19 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
 }
 
 export function AddPersonTile({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).blur();
     onClick(e);
+    requestAnimationFrame(() => {
+      btnRef.current?.focus();
+    });
   };
 
   return (
     <button
+      ref={btnRef}
       onClick={handleClick}
       className="w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group focus:outline-none"
     >

@@ -6,7 +6,8 @@ import {
   type Church, type InsertChurch,
   type ChurchMember, type InsertChurchMember
 } from "@shared/schema";
-import { eq, desc, asc, and, ilike } from "drizzle-orm";
+import { users } from "@shared/models/auth";
+import { eq, desc, asc, and, ilike, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Churches
@@ -20,6 +21,7 @@ export interface IStorage {
   getUserMembership(userId: string): Promise<(ChurchMember & { church: Church }) | undefined>;
   getMember(id: number): Promise<ChurchMember | undefined>;
   getPendingMembers(churchId: number): Promise<ChurchMember[]>;
+  getApprovedMembers(churchId: number): Promise<(ChurchMember & { userName: string; userEmail: string | null })[]>;
   updateMemberStatus(id: number, status: string): Promise<ChurchMember>;
   deleteMember(id: number): Promise<void>;
 
@@ -83,6 +85,28 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(churchMembers).where(
       and(eq(churchMembers.churchId, churchId), eq(churchMembers.status, "pending"))
     ).orderBy(asc(churchMembers.createdAt));
+  }
+
+  async getApprovedMembers(churchId: number): Promise<(ChurchMember & { userName: string; userEmail: string | null })[]> {
+    const rows = await db
+      .select({
+        member: churchMembers,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
+      .from(churchMembers)
+      .leftJoin(users, eq(churchMembers.userId, users.id))
+      .where(
+        and(eq(churchMembers.churchId, churchId), eq(churchMembers.status, "approved"))
+      )
+      .orderBy(asc(churchMembers.createdAt));
+
+    return rows.map((r) => ({
+      ...r.member,
+      userName: [r.firstName, r.lastName].filter(Boolean).join(" ") || `User #${r.member.userId.slice(0, 8)}`,
+      userEmail: r.email,
+    }));
   }
 
   async updateMemberStatus(id: number, status: string): Promise<ChurchMember> {

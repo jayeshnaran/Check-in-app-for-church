@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -18,12 +18,24 @@ import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 
-function getRecentSunday() {
+function getRecentSunday(): Date {
   const d = new Date();
   d.setDate(d.getDate() - d.getDay());
-  return d.toISOString().split('T')[0];
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isSunday(date: Date): boolean {
+  return date.getDay() === 0;
+}
+
+function formatDateStr(date: Date): string {
+  return format(date, "yyyy-MM-dd");
 }
 
 export default function Dashboard() {
@@ -33,7 +45,7 @@ export default function Dashboard() {
   });
 
   const serviceTimes = JSON.parse(localStorage.getItem("service_times") || '["09:30"]');
-  const [selectedDate, setSelectedDate] = useState(getRecentSunday());
+  const [selectedDate, setSelectedDate] = useState<Date>(getRecentSunday());
   const [selectedTime, setSelectedTime] = useState(serviceTimes[0]);
 
   if (!session) {
@@ -48,13 +60,27 @@ export default function Dashboard() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Sunday Date</Label>
-              <Input 
-                type="date" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="rounded-xl h-11 bg-muted/50 border-none"
-                data-testid="input-sunday-date"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-left font-normal rounded-xl h-11 bg-muted/50 border-none"
+                    data-testid="input-sunday-date"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(selectedDate, "EEEE, MMM d, yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    disabled={(date) => !isSunday(date) || date > new Date()}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             
             <div className="space-y-2">
@@ -75,7 +101,7 @@ export default function Dashboard() {
               className="w-full h-12 rounded-xl font-bold text-lg"
               data-testid="button-start-checkin"
               onClick={() => {
-                const sessionData = { date: selectedDate, time: selectedTime };
+                const sessionData = { date: formatDateStr(selectedDate), time: selectedTime };
                 localStorage.setItem("service_session", JSON.stringify(sessionData));
                 setSession(sessionData);
               }}

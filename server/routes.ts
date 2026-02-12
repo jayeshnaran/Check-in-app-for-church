@@ -155,6 +155,38 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/membership/approved', isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const membership = await storage.getUserMembership(userId);
+    if (!membership || membership.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    const approved = await storage.getApprovedMembers(membership.churchId);
+    res.json(approved);
+  });
+
+  app.delete('/api/membership/:id/revoke', isAuthenticated, async (req: any, res) => {
+    const userId = req.user.claims.sub;
+    const membership = await storage.getUserMembership(userId);
+    if (!membership || membership.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    try {
+      const targetId = Number(req.params.id);
+      const target = await storage.getMember(targetId);
+      if (!target || target.churchId !== membership.churchId) {
+        return res.status(404).json({ message: "Member not found" });
+      }
+      if (target.userId === userId) {
+        return res.status(400).json({ message: "You cannot revoke your own access" });
+      }
+      await storage.deleteMember(targetId);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({ message: "Failed to revoke member" });
+    }
+  });
+
   // === FAMILY ROUTES (church-scoped) ===
 
   app.get(api.families.list.path, isAuthenticated, async (req: any, res) => {

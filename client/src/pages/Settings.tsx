@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User, Link2, Unlink, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User, Link2, Unlink, CheckCircle2, AlertCircle, UserMinus } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,29 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/membership/pending"] });
       toast({ title: "Rejected", description: "Request has been removed." });
+    },
+  });
+
+  const { data: approvedMembers } = useQuery<(ChurchMember & { userName: string; userEmail: string | null })[]>({
+    queryKey: ["/api/membership/approved"],
+    queryFn: async () => {
+      const res = await fetch("/api/membership/approved", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: isAdmin,
+  });
+
+  const revokeMember = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/membership/${id}/revoke`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/membership/approved"] });
+      toast({ title: "Revoked", description: "Member access has been removed." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "Failed to revoke access.", variant: "destructive" });
     },
   });
 
@@ -287,6 +310,47 @@ export default function Settings() {
           </Card>
         )}
 
+        {isAdmin && approvedMembers && approvedMembers.length > 0 && (
+          <Card className="rounded-3xl border-none shadow-sm bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                Approved Members
+                <Badge variant="secondary" className="ml-auto">{approvedMembers.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {approvedMembers.map((member) => (
+                <div key={member.id} className="flex items-center justify-between gap-2 p-3 rounded-xl bg-muted/30">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-medium truncate block" data-testid={`text-approved-user-${member.id}`}>
+                      {member.userName}
+                    </span>
+                    {member.userEmail && (
+                      <span className="text-xs text-muted-foreground truncate block">{member.userEmail}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary">{member.role}</Badge>
+                    {member.role !== "admin" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="rounded-full text-destructive"
+                        onClick={() => revokeMember.mutate(member.id)}
+                        disabled={revokeMember.isPending}
+                        data-testid={`button-revoke-${member.id}`}
+                      >
+                        <UserMinus className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {isAdmin && (
           <Card className="rounded-3xl border-none shadow-sm bg-card">
             <CardHeader>
@@ -383,32 +447,39 @@ export default function Settings() {
             <CardTitle className="text-lg">Service Times</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input 
-                type="time" 
-                value={newTime} 
-                onChange={(e) => setNewTime(e.target.value)}
-                className="rounded-xl bg-muted/50 border-none h-11"
-                data-testid="input-new-time"
-              />
-              <Button onClick={addTime} variant="secondary" className="rounded-xl h-11" data-testid="button-add-time">Add</Button>
-            </div>
+            {isAdmin && (
+              <div className="flex gap-2">
+                <Input 
+                  type="time" 
+                  value={newTime} 
+                  onChange={(e) => setNewTime(e.target.value)}
+                  className="rounded-xl bg-muted/50 border-none h-11"
+                  data-testid="input-new-time"
+                />
+                <Button onClick={addTime} variant="secondary" className="rounded-xl h-11" data-testid="button-add-time">Add</Button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {serviceTimes.map(time => (
                 <Badge key={time} variant="secondary" className="pl-3 pr-1 py-1 gap-1 rounded-full">
                   {time}
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-4 w-4 rounded-full p-0" 
-                    onClick={() => removeTime(time)}
-                    data-testid={`button-remove-time-${time}`}
-                  >
-                    ×
-                  </Button>
+                  {isAdmin && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-4 w-4 rounded-full p-0" 
+                      onClick={() => removeTime(time)}
+                      data-testid={`button-remove-time-${time}`}
+                    >
+                      ×
+                    </Button>
+                  )}
                 </Badge>
               ))}
             </div>
+            {!isAdmin && (
+              <p className="text-xs text-muted-foreground">Only admins can add or remove service times.</p>
+            )}
           </CardContent>
         </Card>
 

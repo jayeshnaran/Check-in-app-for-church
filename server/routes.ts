@@ -5,11 +5,15 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { WS_EVENTS } from "@shared/schema";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  await setupAuth(app);
+  registerAuthRoutes(app);
 
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
@@ -22,7 +26,7 @@ export async function registerRoutes(
     });
   }
 
-  app.get(api.families.list.path, async (req, res) => {
+  app.get(api.families.list.path, isAuthenticated, async (req, res) => {
     const { serviceDate, serviceTime } = req.query;
     const allFamilies = await storage.getFamilies();
     
@@ -36,7 +40,7 @@ export async function registerRoutes(
     res.json(allFamilies);
   });
 
-  app.post(api.families.create.path, async (req, res) => {
+  app.post(api.families.create.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.families.create.input.parse(req.body);
       const family = await storage.createFamily(input);
@@ -51,7 +55,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.families.update.path, async (req, res) => {
+  app.put(api.families.update.path, isAuthenticated, async (req, res) => {
     const id = Number(req.params.id);
     try {
       const input = api.families.update.input.parse(req.body);
@@ -73,13 +77,13 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.families.delete.path, async (req, res) => {
+  app.delete(api.families.delete.path, isAuthenticated, async (req, res) => {
     const id = Number(req.params.id);
     await storage.deleteFamily(id);
     res.status(204).end();
   });
 
-  app.post(api.people.create.path, async (req, res) => {
+  app.post(api.people.create.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.people.create.input.parse(req.body);
       const person = await storage.createPerson(input);
@@ -89,7 +93,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.people.update.path, async (req, res) => {
+  app.put(api.people.update.path, isAuthenticated, async (req, res) => {
     const id = Number(req.params.id);
     try {
       const input = api.people.update.input.parse(req.body);
@@ -101,13 +105,13 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.people.delete.path, async (req, res) => {
+  app.delete(api.people.delete.path, isAuthenticated, async (req, res) => {
     const id = Number(req.params.id);
     await storage.deletePerson(id);
     res.status(204).end();
   });
 
-  app.post('/api/sync', async (_req, res) => {
+  app.post('/api/sync', isAuthenticated, async (_req, res) => {
     broadcast(WS_EVENTS.UPDATE);
     res.json({ ok: true });
   });

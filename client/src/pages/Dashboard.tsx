@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -275,6 +275,15 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                   <Settings className="w-5 h-5" />
                 </Button>
               </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                data-testid="button-logout"
+                onClick={() => { window.location.href = "/api/logout"; }}
+              >
+                <LogOut className="w-5 h-5" />
+              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 

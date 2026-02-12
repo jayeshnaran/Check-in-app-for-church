@@ -4,6 +4,15 @@
 
 This is a **church check-ins app** designed for Sunday welcoming teams to quickly capture newcomer and visitor information. It replaces Planning Center's native check-ins flow, which is too slow for newcomers. The app uses a card-based family group UI with person tiles that can be toggled between types (man/woman/boy/girl). It supports two modes: **unlocked** (fast capture, structure editing) and **locked** (data editing). The app is built for 3–4 concurrent mobile users with real-time sync via WebSockets. Speed of capture is prioritized over data correctness — messy/incomplete data is expected and can be cleaned up later by an admin.
 
+### Authentication
+- **Replit Auth** (OpenID Connect) — users must sign in before accessing the app
+- Landing page shown at `/` when not authenticated, with a "Sign In to Continue" button
+- All API routes protected with `isAuthenticated` middleware
+- Auth files in `server/replit_integrations/auth/` — do not modify
+- Auth schema in `shared/models/auth.ts` (users + sessions tables) — exported from `shared/schema.ts`
+- Client-side auth hook: `client/src/hooks/use-auth.ts`
+- Logout button in Dashboard header navigates to `/api/logout`
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

@@ -31,6 +31,9 @@ export function useFamilies(serviceDate?: string, serviceTime?: string) {
   });
 }
 
+let clientKeyCounter = 0;
+function nextClientKey() { return `ck_${Date.now()}_${++clientKeyCounter}`; }
+
 export function useCreateFamily() {
   const queryClient = useQueryClient();
   const key = useSessionQueryKey();
@@ -44,14 +47,17 @@ export function useCreateFamily() {
       const previous = queryClient.getQueryData<any[]>(key);
       
       const tempId = -Date.now();
-      const tempPersonId = tempId - 1;
+      const familyClientKey = nextClientKey();
+      const personClientKey = nextClientKey();
       const optimisticFamily = {
         id: tempId,
+        _clientKey: familyClientKey,
         ...newFamily,
         status: newFamily.status || 'newcomer',
         createdAt: new Date().toISOString(),
         people: [{
-          id: tempPersonId,
+          id: tempId - 1,
+          _clientKey: personClientKey,
           familyId: tempId,
           type: 'man',
           status: newFamily.status || 'newcomer',
@@ -63,14 +69,23 @@ export function useCreateFamily() {
       };
 
       queryClient.setQueryData(key, (old: any) => [optimisticFamily, ...(old || [])]);
-      return { previous, tempId };
+      return { previous, tempId, familyClientKey, personClientKey };
     },
     onError: (_err, _newFamily, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
     onSuccess: (data, _variables, context) => {
       queryClient.setQueryData(key, (old: any) => 
-        old?.map((f: any) => f.id === context?.tempId ? { ...data } : f)
+        old?.map((f: any) => {
+          if (f.id === context?.tempId) {
+            const people = (data.people || []).map((p: any, i: number) => ({
+              ...p,
+              _clientKey: i === 0 ? context?.personClientKey : nextClientKey(),
+            }));
+            return { ...data, _clientKey: context?.familyClientKey, people };
+          }
+          return f;
+        })
       );
     },
   });
@@ -140,8 +155,10 @@ export function useCreatePerson() {
       const previous = queryClient.getQueryData<any[]>(key);
 
       const tempId = -Date.now();
+      const personClientKey = nextClientKey();
       const optimisticPerson = {
         id: tempId,
+        _clientKey: personClientKey,
         ...newPerson,
         status: newPerson.status || 'newcomer',
         firstName: null,
@@ -153,7 +170,7 @@ export function useCreatePerson() {
       queryClient.setQueryData(key, (old: any) => 
         old?.map((f: any) => f.id === newPerson.familyId ? { ...f, people: [...f.people, optimisticPerson] } : f)
       );
-      return { previous, tempId };
+      return { previous, tempId, personClientKey };
     },
     onError: (_err, _newPerson, context) => {
       queryClient.setQueryData(key, context?.previous);
@@ -162,7 +179,7 @@ export function useCreatePerson() {
       queryClient.setQueryData(key, (old: any) => 
         old?.map((f: any) => ({
           ...f,
-          people: f.people.map((p: any) => p.id === context?.tempId ? { ...data } : p)
+          people: f.people.map((p: any) => p.id === context?.tempId ? { ...data, _clientKey: context?.personClientKey } : p)
         }))
       );
     },
@@ -191,14 +208,6 @@ export function useUpdatePerson() {
     },
     onError: (_err, _updates, context) => {
       queryClient.setQueryData(key, context?.previous);
-    },
-    onSuccess: (data, _variables, _context) => {
-      queryClient.setQueryData(key, (old: any) => 
-        old?.map((f: any) => ({
-          ...f,
-          people: f.people.map((p: any) => p.id === data.id ? { ...data } : p)
-        }))
-      );
     },
   });
 }

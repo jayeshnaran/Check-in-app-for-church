@@ -444,10 +444,9 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
       {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
         <AnimatePresence>
-          {filteredFamilies?.map((family) => (
+          {filteredFamilies?.map((family: any) => (
             <motion.div
-              key={family.id}
-              layout="position"
+              key={family._clientKey || family.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -470,7 +469,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                           const newName = e.target.value;
                           updateFamily.mutate({ id: family.id, name: newName });
                           // Automatically update last name for all members
-                          family.people.forEach(person => {
+                          family.people.forEach((person: any) => {
                             if (!person.lastName || person.lastName === family.name) {
                               updatePerson.mutate({ id: person.id, lastName: newName });
                             }
@@ -525,7 +524,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
 
                 {/* People Grid */}
                 <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
-                  {family.people.sort((a, b) => {
+                  {family.people.sort((a: any, b: any) => {
                     // Stable sorting to prevent jumping during ID swap
                     const idA = typeof a.id === 'number' && a.id < 1 ? -1 : 1;
                     const idB = typeof b.id === 'number' && b.id < 1 ? -1 : 1;
@@ -534,9 +533,9 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                     const timeA = new Date(a.createdAt || 0).getTime();
                     const timeB = new Date(b.createdAt || 0).getTime();
                     return timeA - timeB || (typeof a.id === 'number' && typeof b.id === 'number' ? a.id - b.id : 0);
-                  }).map((person) => (
+                  }).map((person: any) => (
                     <PersonTile
-                      key={person.id}
+                      key={person._clientKey || person.id}
                       person={person}
                       mode={mode}
                       onToggleType={() => handleTogglePersonType(person)}

@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { type Person } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { User, Users, Baby, UserMinus } from "lucide-react";
@@ -91,26 +90,21 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
 }
 
 export function AddPersonTile({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
-  const btnRef = useRef<HTMLButtonElement>(null);
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClick(e);
-    requestAnimationFrame(() => {
-      btnRef.current?.focus();
-    });
   };
 
   return (
     <button
-      ref={btnRef}
       onClick={handleClick}
-      className="w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group focus:outline-none"
+      className="w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/20 focus:outline-none"
     >
-      <div className="p-3 rounded-full bg-transparent group-hover:bg-background transition-colors">
-        <Users className="w-8 h-8 text-muted-foreground/40 group-hover:text-primary/60" />
+      <div className="p-3 rounded-full bg-transparent">
+        <Users className="w-8 h-8 text-muted-foreground/40" />
       </div>
-      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 group-hover:text-primary/60">
+      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">
         Add Person
       </span>
     </button>

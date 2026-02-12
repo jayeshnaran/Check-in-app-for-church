@@ -40,6 +40,9 @@ export default function Dashboard() {
 
   const serviceTimes = JSON.parse(localStorage.getItem("service_times") || '["09:30"]');
 
+  const [selectedDate, setSelectedDate] = useState(getRecentSunday());
+  const [selectedTime, setSelectedTime] = useState(serviceTimes[0]);
+
   // Re-check offline mode when component mounts or focus returns
   useEffect(() => {
     const checkOffline = () => {
@@ -201,21 +204,15 @@ export default function Dashboard() {
               <Label>Sunday Date</Label>
               <Input 
                 type="date" 
-                defaultValue={getRecentSunday()}
-                id="sunday-date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
                 className="rounded-xl h-11 bg-muted/50 border-none"
               />
             </div>
             
             <div className="space-y-2">
               <Label>Service Time</Label>
-              <Select defaultValue={serviceTimes[0]} onValueChange={(val) => {
-                const dateEl = document.getElementById('sunday-date') as HTMLInputElement;
-                const date = dateEl.value;
-                const sessionData = { date, time: val };
-                localStorage.setItem("service_session", JSON.stringify(sessionData));
-                setSession(sessionData);
-              }}>
+              <Select value={selectedTime} onValueChange={setSelectedTime}>
                 <SelectTrigger className="rounded-xl h-11 bg-muted/50 border-none">
                   <SelectValue placeholder="Select time" />
                 </SelectTrigger>
@@ -230,11 +227,7 @@ export default function Dashboard() {
             <Button 
               className="w-full h-12 rounded-xl font-bold text-lg"
               onClick={() => {
-                const dateEl = document.getElementById('sunday-date') as HTMLInputElement;
-                const date = dateEl.value;
-                // Get the value from the select if possible, otherwise use default
-                const time = session?.time || serviceTimes[0];
-                const sessionData = { date, time };
+                const sessionData = { date: selectedDate, time: selectedTime };
                 localStorage.setItem("service_session", JSON.stringify(sessionData));
                 setSession(sessionData);
               }}
@@ -264,6 +257,17 @@ export default function Dashboard() {
                   <Settings className="w-5 h-5" />
                 </Button>
               </Link>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-[10px] h-7 px-2 font-bold rounded-full border border-primary/20 bg-primary/5 text-primary"
+                onClick={() => {
+                  localStorage.removeItem("service_session");
+                  setSession(null);
+                }}
+              >
+                {session?.date.split('-').slice(1).join('/')} @ {session?.time}
+              </Button>
               <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-full border border-border">
                 <button
                   onClick={() => setMode("locked")}

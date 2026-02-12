@@ -1,14 +1,30 @@
 import { db } from "./db";
 import {
-  families, people,
+  families, people, churches, churchMembers,
   type Family, type InsertFamily, type UpdateFamilyRequest,
-  type Person, type InsertPerson, type UpdatePersonRequest
+  type Person, type InsertPerson, type UpdatePersonRequest,
+  type Church, type InsertChurch,
+  type ChurchMember, type InsertChurchMember
 } from "@shared/schema";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and, ilike } from "drizzle-orm";
 
 export interface IStorage {
-  // Families
-  getFamilies(): Promise<(Family & { people: Person[] })[]>;
+  // Churches
+  createChurch(church: InsertChurch): Promise<Church>;
+  getChurch(id: number): Promise<Church | undefined>;
+  searchChurches(query: string): Promise<Church[]>;
+  updateChurch(id: number, updates: Partial<InsertChurch>): Promise<Church>;
+
+  // Church Members
+  createChurchMember(member: InsertChurchMember): Promise<ChurchMember>;
+  getUserMembership(userId: string): Promise<(ChurchMember & { church: Church }) | undefined>;
+  getMember(id: number): Promise<ChurchMember | undefined>;
+  getPendingMembers(churchId: number): Promise<ChurchMember[]>;
+  updateMemberStatus(id: number, status: string): Promise<ChurchMember>;
+  deleteMember(id: number): Promise<void>;
+
+  // Families (scoped to church)
+  getFamilies(churchId: number): Promise<(Family & { people: Person[] })[]>;
   getFamily(id: number): Promise<Family | undefined>;
   createFamily(family: InsertFamily): Promise<Family>;
   updateFamily(id: number, family: UpdateFamilyRequest): Promise<Family>;
@@ -21,8 +37,67 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getFamilies(): Promise<(Family & { people: Person[] })[]> {
-    const allFamilies = await db.select().from(families).orderBy(desc(families.createdAt));
+  // Churches
+  async createChurch(church: InsertChurch): Promise<Church> {
+    const [newChurch] = await db.insert(churches).values(church).returning();
+    return newChurch;
+  }
+
+  async getChurch(id: number): Promise<Church | undefined> {
+    const [church] = await db.select().from(churches).where(eq(churches.id, id));
+    return church;
+  }
+
+  async searchChurches(query: string): Promise<Church[]> {
+    if (!query || query.length < 2) return [];
+    return db.select().from(churches).where(ilike(churches.name, `%${query}%`)).limit(10);
+  }
+
+  async updateChurch(id: number, updates: Partial<InsertChurch>): Promise<Church> {
+    const [updated] = await db.update(churches).set(updates).where(eq(churches.id, id)).returning();
+    return updated;
+  }
+
+  // Church Members
+  async createChurchMember(member: InsertChurchMember): Promise<ChurchMember> {
+    const [newMember] = await db.insert(churchMembers).values(member).returning();
+    return newMember;
+  }
+
+  async getUserMembership(userId: string): Promise<(ChurchMember & { church: Church }) | undefined> {
+    const members = await db.select().from(churchMembers).where(eq(churchMembers.userId, userId));
+    const member = members.find(m => m.status === "approved") || members[0];
+    if (!member) return undefined;
+    const [church] = await db.select().from(churches).where(eq(churches.id, member.churchId));
+    if (!church) return undefined;
+    return { ...member, church };
+  }
+
+  async getMember(id: number): Promise<ChurchMember | undefined> {
+    const [member] = await db.select().from(churchMembers).where(eq(churchMembers.id, id));
+    return member;
+  }
+
+  async getPendingMembers(churchId: number): Promise<ChurchMember[]> {
+    return db.select().from(churchMembers).where(
+      and(eq(churchMembers.churchId, churchId), eq(churchMembers.status, "pending"))
+    ).orderBy(asc(churchMembers.createdAt));
+  }
+
+  async updateMemberStatus(id: number, status: string): Promise<ChurchMember> {
+    const [updated] = await db.update(churchMembers).set({ status }).where(eq(churchMembers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMember(id: number): Promise<void> {
+    await db.delete(churchMembers).where(eq(churchMembers.id, id));
+  }
+
+  // Families (scoped to church)
+  async getFamilies(churchId: number): Promise<(Family & { people: Person[] })[]> {
+    const allFamilies = await db.select().from(families)
+      .where(eq(families.churchId, churchId))
+      .orderBy(desc(families.createdAt));
     const allPeople = await db.select().from(people).orderBy(asc(people.id));
 
     return allFamilies.map(family => ({

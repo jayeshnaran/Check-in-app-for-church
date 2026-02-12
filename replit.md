@@ -43,9 +43,14 @@ Preferred communication style: Simple, everyday language.
 - **Schema Location**: `shared/schema.ts` — shared between client and server
 - **Migrations**: Drizzle Kit with `drizzle-kit push` for schema syncing
 - **Tables**:
-  - `families` — id, name, status (newcomer/visitor), notes, createdAt
+  - `churches` — id, name, description, logoUrl, createdAt
+  - `church_members` — id, churchId (FK), userId (FK to users), role (admin/member), status (pending/approved), createdAt
+  - `families` — id, churchId (FK), name, status (newcomer/visitor), notes, serviceDate, serviceTime, createdAt
   - `people` — id, familyId (FK), type (man/woman/boy/girl), firstName, lastName, ageBracket, status, createdAt
-- **Relations**: One family has many people
+  - `users` — id, email, firstName, lastName, profileImageUrl (managed by Replit Auth)
+  - `sessions` — sid, sess, expire (managed by Replit Auth)
+- **Relations**: One church has many members and families; one family has many people
+- **Multi-tenancy**: All family/person data is scoped to a church via churchId; server derives churchId from authenticated user's approved membership (never from client)
 
 ### Real-time Sync
 - WebSocket connection at `/ws` with automatic reconnection (3s delay)

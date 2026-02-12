@@ -1,0 +1,282 @@
+Since your Node-based Replit app is public and any church should be able to connect their own Planning Center account, you absolutely want:
+
+✅ OAuth 2.0 Authorization Code Flow
+✅ Multi-tenant token storage (per church)
+✅ Self-serve “Connect to Planning Center” button
+❌ No one touching developer backend
+
+This is exactly how proper SaaS ↔ PCO integrations are built.
+
+🎯 High-Level Architecture (Multi-Church SaaS)
+Church Admin
+   ↓
+Clicks "Connect Planning Center"
+   ↓
+Redirect to PCO OAuth
+   ↓
+Admin logs into their church’s PCO
+   ↓
+PCO redirects back to your app
+   ↓
+You store that church’s tokens
+   ↓
+Your app can now create people in THEIR PCO
+
+
+Each church authorizes once. No developer work required after launch.
+
+🔐 Step 1: Create ONE OAuth App in PCO
+
+You only create this once.
+
+In Planning Center:
+
+Create OAuth Application
+
+Redirect URI:
+
+https://your-app.replit.app/auth/pco/callback
+
+
+Scope:
+
+people
+
+
+You now have:
+
+PCO_CLIENT_ID
+PCO_CLIENT_SECRET
+
+
+Store both in Replit Secrets.
+
+🧠 Critical Concept: Multi-Tenant Token Storage
+
+Each church that connects will generate:
+
+access_token
+
+refresh_token
+
+expires_at
+
+You must store these in your database tied to THAT church’s account.
+
+Example DB structure:
+
+churches
+- id
+- name
+- pco_organization_id
+- pco_access_token
+- pco_refresh_token
+- pco_token_expires_at
+
+
+Important:
+You will also receive the church’s organization_id from PCO — store it.
+
+🛠 Node Implementation Blueprint
+
+I’ll outline this in practical Express terms.
+
+1️⃣ Install Required Packages
+npm install axios express-session crypto
+
+2️⃣ Add Session Middleware (for OAuth state protection)
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true
+}));
+
+
+Add SESSION_SECRET to Replit secrets.
+
+3️⃣ "Connect to Planning Center" Route
+const crypto = require('crypto');
+
+app.get('/auth/pco', (req, res) => {
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.oauthState = state;
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.PCO_CLIENT_ID,
+    redirect_uri: process.env.PCO_REDIRECT_URI,
+    scope: 'people',
+    state: state
+  });
+
+  res.redirect(`https://api.planningcenteronline.com/oauth/authorize?${params}`);
+});
+
+
+This is what your “Connect PCO” button links to.
+
+4️⃣ OAuth Callback Route
+const axios = require('axios');
+
+app.get('/auth/pco/callback', async (req, res) => {
+  const { code, state } = req.query;
+
+  if (state !== req.session.oauthState) {
+    return res.status(400).send('Invalid state');
+  }
+
+  try {
+    const tokenResponse = await axios.post(
+      'https://api.planningcenteronline.com/oauth/token',
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: process.env.PCO_REDIRECT_URI,
+        client_id: process.env.PCO_CLIENT_ID,
+        client_secret: process.env.PCO_CLIENT_SECRET
+      })
+    );
+
+    const { access_token, refresh_token, expires_in } = tokenResponse.data;
+
+    // Get organization info
+    const orgResponse = await axios.get(
+      'https://api.planningcenteronline.com/people/v2/',
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`
+        }
+      }
+    );
+
+    const organizationId = orgResponse.data.links.organization;
+
+    // Save to DB (IMPORTANT)
+    await saveChurchIntegration({
+      organizationId,
+      access_token,
+      refresh_token,
+      expires_at: Date.now() + expires_in * 1000
+    });
+
+    res.redirect('/dashboard?connected=true');
+
+  } catch (err) {
+    console.error(err.response?.data || err);
+    res.status(500).send('OAuth failed');
+  }
+});
+
+🔄 Token Refresh Logic (VERY Important)
+
+Before making any PCO API call:
+
+async function getValidAccessToken(church) {
+  if (Date.now() > church.pco_token_expires_at) {
+
+    const response = await axios.post(
+      'https://api.planningcenteronline.com/oauth/token',
+      new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: church.pco_refresh_token,
+        client_id: process.env.PCO_CLIENT_ID,
+        client_secret: process.env.PCO_CLIENT_SECRET
+      })
+    );
+
+    church.pco_access_token = response.data.access_token;
+    church.pco_refresh_token = response.data.refresh_token;
+    church.pco_token_expires_at = Date.now() + response.data.expires_in * 1000;
+
+    await church.save();
+  }
+
+  return church.pco_access_token;
+}
+
+
+Never let expired tokens cause random failures.
+
+👤 Creating a Person in PCO
+async function createPerson(church, personData) {
+  const token = await getValidAccessToken(church);
+
+  return axios.post(
+    'https://api.planningcenteronline.com/people/v2/people',
+    {
+      data: {
+        type: 'Person',
+        attributes: {
+          first_name: personData.firstName,
+          last_name: personData.lastName
+        }
+      }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+}
+
+🛡 Security Checklist (Important for Public App)
+✅ Use HTTPS (Replit does this)
+✅ Store tokens in database, not memory
+✅ Encrypt tokens at rest (recommended)
+✅ Use state param
+✅ Validate all incoming data
+✅ Do NOT expose access tokens to frontend
+✅ Add rate limiting
+🧩 How Churches Connect (User Experience)
+
+In your app dashboard:
+
+[ Connect to Planning Center ]
+
+
+Admin clicks.
+
+They log into THEIR PCO.
+
+They approve access.
+
+Done.
+
+No backend developer access required.
+
+🔥 Pro-Level Improvements (Highly Recommended)
+1️⃣ Encrypt Tokens in DB
+
+Use something like:
+
+crypto.createCipheriv()
+
+
+Or a library like:
+
+npm install crypto-js
+
+
+Never store raw tokens in plain text long-term.
+
+2️⃣ Add "Disconnect PCO" Button
+
+Delete stored tokens.
+
+3️⃣ Handle Permission Errors
+
+If a user connects but lacks People permissions, PCO will reject requests. Catch 403 errors gracefully.
+
+🏆 Final Verdict
+
+For your public, multi-church Checkins app:
+
+✔ One OAuth app
+✔ Each church connects themselves
+✔ Store tokens per church
+✔ Refresh automatically
+✔ Backend-only API calls
+
+This is scalable and production-safe.

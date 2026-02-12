@@ -13,10 +13,10 @@ export async function registerRoutes(
 
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  function broadcast(type: string, payload?: any) {
+  function broadcast(type: string, payload?: any, exclude?: WebSocket) {
     const message = JSON.stringify({ type, payload });
     wss.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === WebSocket.OPEN && client !== exclude) {
         client.send(message);
       }
     });
@@ -45,7 +45,6 @@ export async function registerRoutes(
         type: 'man',
         status: input.status || 'newcomer',
       });
-      broadcast(WS_EVENTS.UPDATE);
       res.status(201).json({ ...family, people: [defaultPerson] });
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
@@ -59,7 +58,6 @@ export async function registerRoutes(
       const updated = await storage.updateFamily(id, input);
       if (!updated) return res.status(404).json({ message: "Family not found" });
       
-      // If family status changed, update all people in that family
       if (input.status) {
         const familyWithPeople = (await storage.getFamilies()).find(f => f.id === id);
         if (familyWithPeople) {
@@ -69,7 +67,6 @@ export async function registerRoutes(
         }
       }
 
-      broadcast(WS_EVENTS.UPDATE);
       res.json(updated);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
@@ -79,7 +76,6 @@ export async function registerRoutes(
   app.delete(api.families.delete.path, async (req, res) => {
     const id = Number(req.params.id);
     await storage.deleteFamily(id);
-    broadcast(WS_EVENTS.UPDATE);
     res.status(204).end();
   });
 
@@ -87,7 +83,6 @@ export async function registerRoutes(
     try {
       const input = api.people.create.input.parse(req.body);
       const person = await storage.createPerson(input);
-      broadcast(WS_EVENTS.UPDATE);
       res.status(201).json(person);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
@@ -99,7 +94,7 @@ export async function registerRoutes(
     try {
       const input = api.people.update.input.parse(req.body);
       const updated = await storage.updatePerson(id, input);
-      broadcast(WS_EVENTS.UPDATE);
+      if (!updated) return res.status(404).json({ message: "Person not found" });
       res.json(updated);
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
@@ -109,8 +104,12 @@ export async function registerRoutes(
   app.delete(api.people.delete.path, async (req, res) => {
     const id = Number(req.params.id);
     await storage.deletePerson(id);
-    broadcast(WS_EVENTS.UPDATE);
     res.status(204).end();
+  });
+
+  app.post('/api/sync', async (_req, res) => {
+    broadcast(WS_EVENTS.UPDATE);
+    res.json({ ok: true });
   });
 
   return httpServer;

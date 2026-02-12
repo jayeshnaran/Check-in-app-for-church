@@ -1,7 +1,19 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { WS_EVENTS, type WsMessage } from "@shared/schema";
-import { shouldSuppressWsInvalidation } from "@/lib/mutation-tracker";
+import { type WsMessage } from "@shared/schema";
+
+type ConflictHandler = () => void;
+
+let onConflictHandler: ConflictHandler | null = null;
+let suppressConflictUntil = 0;
+
+export function setConflictHandler(handler: ConflictHandler | null) {
+  onConflictHandler = handler;
+}
+
+export function suppressConflict(ms: number = 2000) {
+  suppressConflictUntil = Date.now() + ms;
+}
 
 export function useWebSocket() {
   const queryClient = useQueryClient();
@@ -24,10 +36,11 @@ export function useWebSocket() {
           const message: WsMessage = JSON.parse(event.data);
           
           if (message.type === 'update') {
-            if (shouldSuppressWsInvalidation()) {
-              return;
-            }
             queryClient.invalidateQueries({ queryKey: ["/api/families"] });
+            
+            if (onConflictHandler && Date.now() > suppressConflictUntil) {
+              onConflictHandler();
+            }
           }
         } catch (error) {
           console.error("Failed to parse WebSocket message", error);

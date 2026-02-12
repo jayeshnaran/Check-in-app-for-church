@@ -3,7 +3,6 @@ import { createContext, useContext } from "react";
 import { api, buildUrl } from "@shared/routes";
 import { type Family, type Person, type CreateFamilyRequest, type UpdateFamilyRequest, type CreatePersonRequest, type UpdatePersonRequest } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { startMutation, endMutation } from "@/lib/mutation-tracker";
 
 export interface SessionContext {
   date: string;
@@ -41,7 +40,6 @@ export function useCreateFamily() {
       return res.json();
     },
     onMutate: async (newFamily) => {
-      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
       
@@ -72,11 +70,8 @@ export function useCreateFamily() {
     },
     onSuccess: (data, _variables, context) => {
       queryClient.setQueryData(key, (old: any) => 
-        old?.map((f: any) => f.id === context?.tempId ? { ...data, people: f.people || [] } : f)
+        old?.map((f: any) => f.id === context?.tempId ? { ...data } : f)
       );
-    },
-    onSettled: () => {
-      endMutation();
     },
   });
 }
@@ -90,7 +85,6 @@ export function useUpdateFamily() {
       return res.json();
     },
     onMutate: async (updates) => {
-      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -111,9 +105,6 @@ export function useUpdateFamily() {
     onError: (_err, _updates, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
-    onSettled: () => {
-      endMutation();
-    },
   });
 }
 
@@ -125,7 +116,6 @@ export function useDeleteFamily() {
       await apiRequest("DELETE", buildUrl(api.families.delete.path, { id }));
     },
     onMutate: async (id) => {
-      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
       queryClient.setQueryData(key, (old: any) => old?.filter((f: any) => f.id !== id));
@@ -133,9 +123,6 @@ export function useDeleteFamily() {
     },
     onError: (_err, _id, context) => {
       queryClient.setQueryData(key, context?.previous);
-    },
-    onSettled: () => {
-      endMutation();
     },
   });
 }
@@ -149,7 +136,6 @@ export function useCreatePerson() {
       return res.json();
     },
     onMutate: async (newPerson) => {
-      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -158,6 +144,9 @@ export function useCreatePerson() {
         id: tempId,
         ...newPerson,
         status: newPerson.status || 'newcomer',
+        firstName: null,
+        lastName: null,
+        ageBracket: null,
         createdAt: new Date().toISOString(),
       };
 
@@ -177,9 +166,6 @@ export function useCreatePerson() {
         }))
       );
     },
-    onSettled: () => {
-      endMutation();
-    },
   });
 }
 
@@ -192,7 +178,6 @@ export function useUpdatePerson() {
       return res.json();
     },
     onMutate: async (updates) => {
-      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -207,8 +192,13 @@ export function useUpdatePerson() {
     onError: (_err, _updates, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
-    onSettled: () => {
-      endMutation();
+    onSuccess: (data, _variables, _context) => {
+      queryClient.setQueryData(key, (old: any) => 
+        old?.map((f: any) => ({
+          ...f,
+          people: f.people.map((p: any) => p.id === data.id ? { ...data } : p)
+        }))
+      );
     },
   });
 }
@@ -221,7 +211,6 @@ export function useDeletePerson() {
       await apiRequest("DELETE", buildUrl(api.people.delete.path, { id }));
     },
     onMutate: async (id) => {
-      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -235,9 +224,6 @@ export function useDeletePerson() {
     },
     onError: (_err, _id, context) => {
       queryClient.setQueryData(key, context?.previous);
-    },
-    onSettled: () => {
-      endMutation();
     },
   });
 }

@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson, ServiceSessionContext } from "@/hooks/use-families";
-import { useWebSocket } from "@/hooks/use-ws";
+import { useWebSocket, setConflictHandler, suppressConflict } from "@/hooks/use-ws";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
 import { EditPersonDialog } from "@/components/EditPersonDialog";
 import { type Person, type Family } from "@shared/schema";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 function getRecentSunday() {
   const d = new Date();
@@ -94,12 +97,14 @@ export default function Dashboard() {
 
 function DashboardContent({ session, setSession }: { session: { date: string, time: string }, setSession: (s: { date: string, time: string } | null) => void }) {
   useWebSocket();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   
   const [mode, setMode] = useState<"locked" | "unlocked">("locked");
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
   const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
 
   useEffect(() => {
     const checkOffline = () => {
@@ -108,6 +113,28 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     window.addEventListener('focus', checkOffline);
     return () => window.removeEventListener('focus', checkOffline);
   }, []);
+
+  useEffect(() => {
+    setConflictHandler(() => {
+      setShowConflictDialog(true);
+    });
+    return () => setConflictHandler(null);
+  }, []);
+
+  const handleModeSwitch = useCallback(async (newMode: "locked" | "unlocked") => {
+    const wasUnlocked = mode === "unlocked";
+    setMode(newMode);
+    
+    if (wasUnlocked && newMode === "locked") {
+      try {
+        suppressConflict(2000);
+        await apiRequest("POST", "/api/sync");
+        queryClient.invalidateQueries({ queryKey: ["/api/families"] });
+      } catch {
+        // sync failed silently - data is already saved server-side
+      }
+    }
+  }, [mode, queryClient]);
 
   const { data: families, isLoading } = useFamilies(session.date, session.time);
   const createFamily = useCreateFamily();
@@ -261,7 +288,8 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
               </Button>
               <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-full border border-border">
                 <button
-                  onClick={() => setMode("locked")}
+                  onClick={() => handleModeSwitch("locked")}
+                  data-testid="button-mode-locked"
                   className={`p-2 rounded-full transition-all ${
                     mode === "locked" ? "bg-white shadow-sm text-primary" : "text-muted-foreground"
                   }`}
@@ -269,7 +297,8 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                   <Lock className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setMode("unlocked")}
+                  onClick={() => handleModeSwitch("unlocked")}
+                  data-testid="button-mode-unlocked"
                   className={`p-2 rounded-full transition-all ${
                     mode === "unlocked" ? "bg-white shadow-sm text-orange-500" : "text-muted-foreground"
                   }`}
@@ -448,6 +477,29 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
         }}
         isSaving={updatePerson.isPending}
       />
+
+      {/* Conflict Warning Dialog */}
+      <Dialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Editing Clash Detected
+            </DialogTitle>
+            <DialogDescription>
+              Another team member has just synced their changes. The most recent edits have been retained. Your view will now refresh with the latest data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              onClick={() => setShowConflictDialog(false)}
+              data-testid="button-dismiss-conflict"
+            >
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

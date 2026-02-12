@@ -40,9 +40,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Real-time Sync
 - WebSocket connection at `/ws` with automatic reconnection (3s delay)
-- Server broadcasts `UPDATE` events on any data mutation
-- Client invalidates React Query cache on receiving WebSocket messages, triggering refetches
+- **Sync-on-mode-switch model**: Individual mutations do NOT broadcast to other clients. Instead, when a user switches from unlocked → locked mode, the client calls `POST /api/sync` which broadcasts an `UPDATE` event to all other connected clients.
+- Other clients receiving the update see a conflict warning dialog ("Editing Clash Detected") and their cache is invalidated to refetch latest data
+- The syncing client suppresses its own conflict dialog for 2 seconds using `suppressConflict()` in `use-ws.ts`
 - Last-write-wins conflict resolution (acceptable for this use case)
+- All mutations use optimistic updates with temp IDs replaced by server-returned real IDs in `onSuccess`
 
 ### Build & Deployment
 - **Dev**: `tsx server/index.ts` with Vite dev server middleware (HMR at `/vite-hmr`)

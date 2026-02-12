@@ -35,6 +35,10 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
     }
   };
 
+  const displayAge = person.ageBracket?.includes('-') && parseInt(person.ageBracket.split('-')[0]) >= 30 
+    ? person.ageBracket.split('-')[0] + 's' 
+    : person.ageBracket;
+
   return (
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
@@ -53,7 +57,7 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
       >
         <div className="absolute top-1.5 left-1.5 flex gap-1">
           <span className="px-1 py-0.5 text-[6px] font-bold bg-primary/10 text-primary rounded-full leading-none uppercase flex items-center justify-center min-w-[12px] h-3">
-            {person.ageBracket || "?"}
+            {displayAge || "?"}
           </span>
         </div>
 

@@ -42,10 +42,7 @@ export function useCreateFamily() {
       );
     },
     onSettled: () => {
-      // Delay refetch slightly to let animations finish
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
-      }, 500);
+      // Don't refetch on creation to prevent flicker
     },
   });
 }
@@ -141,9 +138,7 @@ export function useCreatePerson() {
       );
     },
     onSettled: () => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: [api.families.list.path] });
-      }, 500);
+      // Don't refetch on creation
     },
   });
 }

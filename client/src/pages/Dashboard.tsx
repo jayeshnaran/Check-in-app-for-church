@@ -46,7 +46,18 @@ export default function Dashboard() {
 
   // Handlers
   const handleTogglePersonType = (person: Person) => {
-    const types = ['man', 'woman', 'boy', 'girl'];
+    const childBrackets = ["0-3", "4-7", "8-11", "12-17"];
+    const isChild = childBrackets.includes(person.ageBracket || "");
+    
+    let types: string[];
+    if (person.ageBracket && isChild) {
+      types = ['boy', 'girl'];
+    } else if (person.ageBracket && !isChild) {
+      types = ['man', 'woman'];
+    } else {
+      types = ['man', 'woman', 'boy', 'girl'];
+    }
+
     const currentIndex = types.indexOf(person.type);
     const nextType = types[(currentIndex + 1) % types.length] as any;
     
@@ -287,6 +298,11 @@ export default function Dashboard() {
                 {/* People Grid */}
                 <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
                   {family.people.sort((a, b) => {
+                    // Stable sorting to prevent jumping during ID swap
+                    const idA = typeof a.id === 'number' && a.id < 1 ? -1 : 1;
+                    const idB = typeof b.id === 'number' && b.id < 1 ? -1 : 1;
+                    if (idA !== idB) return idA - idB;
+                    
                     const timeA = new Date(a.createdAt || 0).getTime();
                     const timeB = new Date(b.createdAt || 0).getTime();
                     return timeA - timeB || (typeof a.id === 'number' && typeof b.id === 'number' ? a.id - b.id : 0);

@@ -102,13 +102,13 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
                 <SelectItem value="12-17">12-17</SelectItem>
                 <SelectItem value="18-24">18-24</SelectItem>
                 <SelectItem value="25-29">25-29</SelectItem>
-                <SelectItem value="30-39">30s</SelectItem>
-                <SelectItem value="40-49">40s</SelectItem>
-                <SelectItem value="50-59">50s</SelectItem>
-                <SelectItem value="60-69">60s</SelectItem>
-                <SelectItem value="70-79">70s</SelectItem>
-                <SelectItem value="80-89">80s</SelectItem>
-                <SelectItem value="90-99">90s</SelectItem>
+                <SelectItem value="30-39">30-39</SelectItem>
+                <SelectItem value="40-49">40-49</SelectItem>
+                <SelectItem value="50-59">50-59</SelectItem>
+                <SelectItem value="60-69">60-69</SelectItem>
+                <SelectItem value="70-79">70-79</SelectItem>
+                <SelectItem value="80-89">80-89</SelectItem>
+                <SelectItem value="90-99">90-99</SelectItem>
               </SelectContent>
             </Select>
           </div>

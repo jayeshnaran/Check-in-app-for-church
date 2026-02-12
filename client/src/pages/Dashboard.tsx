@@ -524,15 +524,13 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
 
                 {/* People Grid */}
                 <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
-                  {family.people.sort((a: any, b: any) => {
-                    // Stable sorting to prevent jumping during ID swap
-                    const idA = typeof a.id === 'number' && a.id < 1 ? -1 : 1;
-                    const idB = typeof b.id === 'number' && b.id < 1 ? -1 : 1;
-                    if (idA !== idB) return idA - idB;
-                    
+                  {[...family.people].sort((a: any, b: any) => {
+                    const keyA = a._clientKey || '';
+                    const keyB = b._clientKey || '';
+                    if (keyA && keyB) return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
                     const timeA = new Date(a.createdAt || 0).getTime();
                     const timeB = new Date(b.createdAt || 0).getTime();
-                    return timeA - timeB || (typeof a.id === 'number' && typeof b.id === 'number' ? a.id - b.id : 0);
+                    return timeA - timeB || a.id - b.id;
                   }).map((person: any) => (
                     <PersonTile
                       key={person._clientKey || person.id}

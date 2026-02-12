@@ -16,6 +16,9 @@ function useSessionQueryKey() {
   return [api.families.list.path, session?.date, session?.time];
 }
 
+let clientKeyCounter = 0;
+function nextClientKey() { return `ck_${Date.now()}_${++clientKeyCounter}`; }
+
 export function useFamilies(serviceDate?: string, serviceTime?: string) {
   const params = serviceDate && serviceTime 
     ? `?serviceDate=${encodeURIComponent(serviceDate)}&serviceTime=${encodeURIComponent(serviceTime)}`
@@ -25,14 +28,19 @@ export function useFamilies(serviceDate?: string, serviceTime?: string) {
     queryFn: async () => {
       const res = await fetch(`${api.families.list.path}${params}`);
       if (!res.ok) throw new Error('Failed to fetch families');
-      return res.json();
+      const data = await res.json();
+      return data.map((f: any) => ({
+        ...f,
+        _clientKey: f._clientKey || nextClientKey(),
+        people: (f.people || []).map((p: any) => ({
+          ...p,
+          _clientKey: p._clientKey || nextClientKey(),
+        })),
+      }));
     },
     enabled: !!serviceDate && !!serviceTime,
   });
 }
-
-let clientKeyCounter = 0;
-function nextClientKey() { return `ck_${Date.now()}_${++clientKeyCounter}`; }
 
 export function useCreateFamily() {
   const queryClient = useQueryClient();
@@ -177,10 +185,14 @@ export function useCreatePerson() {
     },
     onSuccess: (data, _variables, context) => {
       queryClient.setQueryData(key, (old: any) => 
-        old?.map((f: any) => ({
-          ...f,
-          people: f.people.map((p: any) => p.id === context?.tempId ? { ...data, _clientKey: context?.personClientKey } : p)
-        }))
+        old?.map((f: any) => {
+          const hasTempPerson = f.people.some((p: any) => p.id === context?.tempId);
+          if (!hasTempPerson) return f;
+          return {
+            ...f,
+            people: f.people.map((p: any) => p.id === context?.tempId ? { ...data, _clientKey: context?.personClientKey } : p)
+          };
+        })
       );
     },
   });

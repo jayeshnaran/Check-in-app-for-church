@@ -1,7 +1,6 @@
 import { type Person } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { User, Users, Baby, UserMinus } from "lucide-react";
-import { motion } from "framer-motion";
 
 interface PersonTileProps {
   person: Person;
@@ -40,11 +39,7 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
     : person.ageBracket;
 
   return (
-    <motion.div
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      className="relative group"
-    >
+    <div className="relative group">
       <button
         onClick={handleClick}
         className={cn(
@@ -89,7 +84,7 @@ export function PersonTile({ person, mode, onToggleType, onEdit, onDelete }: Per
           <UserMinus className="w-4 h-4" />
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -97,15 +92,14 @@ export function AddPersonTile({ onClick }: { onClick: (e: React.MouseEvent) => v
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    (e.currentTarget as HTMLElement).blur();
     onClick(e);
   };
 
   return (
-    <motion.button
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+    <button
       onClick={handleClick}
-      className="w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-primary/20"
+      className="w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-muted-foreground/20 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group focus:outline-none"
     >
       <div className="p-3 rounded-full bg-transparent group-hover:bg-background transition-colors">
         <Users className="w-8 h-8 text-muted-foreground/40 group-hover:text-primary/60" />
@@ -113,6 +107,6 @@ export function AddPersonTile({ onClick }: { onClick: (e: React.MouseEvent) => v
       <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60 group-hover:text-primary/60">
         Add Person
       </span>
-    </motion.button>
+    </button>
   );
 }

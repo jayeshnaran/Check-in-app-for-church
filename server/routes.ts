@@ -40,8 +40,13 @@ export async function registerRoutes(
     try {
       const input = api.families.create.input.parse(req.body);
       const family = await storage.createFamily(input);
+      const defaultPerson = await storage.createPerson({
+        familyId: family.id,
+        type: 'man',
+        status: input.status || 'newcomer',
+      });
       broadcast(WS_EVENTS.UPDATE);
-      res.status(201).json(family);
+      res.status(201).json({ ...family, people: [defaultPerson] });
     } catch (err) {
       res.status(400).json({ message: "Invalid input" });
     }

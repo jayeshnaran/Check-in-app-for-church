@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 import { api, buildUrl } from "@shared/routes";
 import { type Family, type Person, type CreateFamilyRequest, type UpdateFamilyRequest, type CreatePersonRequest, type UpdatePersonRequest } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { startMutation, endMutation } from "@/lib/mutation-tracker";
 
 export interface SessionContext {
   date: string;
@@ -40,30 +41,42 @@ export function useCreateFamily() {
       return res.json();
     },
     onMutate: async (newFamily) => {
+      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
       
-      const tempId = Math.random();
+      const tempId = -Date.now();
+      const tempPersonId = tempId - 1;
       const optimisticFamily = {
         id: tempId,
         ...newFamily,
         status: newFamily.status || 'newcomer',
         createdAt: new Date().toISOString(),
-        people: []
+        people: [{
+          id: tempPersonId,
+          familyId: tempId,
+          type: 'man',
+          status: newFamily.status || 'newcomer',
+          firstName: null,
+          lastName: null,
+          ageBracket: null,
+          createdAt: new Date().toISOString(),
+        }]
       };
 
       queryClient.setQueryData(key, (old: any) => [optimisticFamily, ...(old || [])]);
       return { previous, tempId };
     },
-    onError: (err, newFamily, context) => {
+    onError: (_err, _newFamily, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, _variables, context) => {
       queryClient.setQueryData(key, (old: any) => 
-        old?.map((f: any) => f.id === context?.tempId ? { ...f, id: data.id } : f)
+        old?.map((f: any) => f.id === context?.tempId ? { ...data, people: f.people || [] } : f)
       );
     },
     onSettled: () => {
+      endMutation();
     },
   });
 }
@@ -77,6 +90,7 @@ export function useUpdateFamily() {
       return res.json();
     },
     onMutate: async (updates) => {
+      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -94,10 +108,11 @@ export function useUpdateFamily() {
       );
       return { previous };
     },
-    onError: (err, updates, context) => {
+    onError: (_err, _updates, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
     onSettled: () => {
+      endMutation();
     },
   });
 }
@@ -110,16 +125,17 @@ export function useDeleteFamily() {
       await apiRequest("DELETE", buildUrl(api.families.delete.path, { id }));
     },
     onMutate: async (id) => {
+      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
       queryClient.setQueryData(key, (old: any) => old?.filter((f: any) => f.id !== id));
       return { previous };
     },
-    onError: (err, id, context) => {
+    onError: (_err, _id, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: key });
+      endMutation();
     },
   });
 }
@@ -133,10 +149,11 @@ export function useCreatePerson() {
       return res.json();
     },
     onMutate: async (newPerson) => {
+      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
-      const tempId = Math.random();
+      const tempId = -Date.now();
       const optimisticPerson = {
         id: tempId,
         ...newPerson,
@@ -149,18 +166,19 @@ export function useCreatePerson() {
       );
       return { previous, tempId };
     },
-    onError: (err, newPerson, context) => {
+    onError: (_err, _newPerson, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, _variables, context) => {
       queryClient.setQueryData(key, (old: any) => 
         old?.map((f: any) => ({
           ...f,
-          people: f.people.map((p: any) => p.id === context?.tempId ? { ...p, id: data.id } : p)
+          people: f.people.map((p: any) => p.id === context?.tempId ? { ...data } : p)
         }))
       );
     },
     onSettled: () => {
+      endMutation();
     },
   });
 }
@@ -174,6 +192,7 @@ export function useUpdatePerson() {
       return res.json();
     },
     onMutate: async (updates) => {
+      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -185,10 +204,11 @@ export function useUpdatePerson() {
       );
       return { previous };
     },
-    onError: (err, updates, context) => {
+    onError: (_err, _updates, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
     onSettled: () => {
+      endMutation();
     },
   });
 }
@@ -201,6 +221,7 @@ export function useDeletePerson() {
       await apiRequest("DELETE", buildUrl(api.people.delete.path, { id }));
     },
     onMutate: async (id) => {
+      startMutation();
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
 
@@ -212,11 +233,11 @@ export function useDeletePerson() {
       );
       return { previous };
     },
-    onError: (err, id, context) => {
+    onError: (_err, _id, context) => {
       queryClient.setQueryData(key, context?.previous);
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: key });
+      endMutation();
     },
   });
 }

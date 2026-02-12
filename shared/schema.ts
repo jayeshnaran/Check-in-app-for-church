@@ -65,6 +65,6 @@ export const WS_EVENTS = {
 } as const;
 
 export interface WsMessage {
-  type: keyof typeof WS_EVENTS;
+  type: typeof WS_EVENTS[keyof typeof WS_EVENTS];
   payload?: any;
 }

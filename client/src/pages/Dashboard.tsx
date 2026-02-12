@@ -138,24 +138,11 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   };
 
   const handleAddFamily = () => {
-    createFamily.mutate(
-      { 
-        status: 'newcomer',
-        serviceDate: session?.date,
-        serviceTime: session?.time 
-      }, 
-      {
-        onSuccess: (newFamily) => {
-          // Immediately add a default person to the new family
-          createPerson.mutate({
-            familyId: newFamily.id,
-            type: 'man',
-            status: 'newcomer'
-          });
-          toast({ title: "Family created", description: "Added new family group" });
-        }
-      }
-    );
+    createFamily.mutate({ 
+      status: 'newcomer',
+      serviceDate: session?.date,
+      serviceTime: session?.time 
+    });
   };
 
   const handleAddPerson = (e: React.MouseEvent, familyId: number) => {

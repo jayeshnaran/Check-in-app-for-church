@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 import { WS_EVENTS, type WsMessage } from "@shared/schema";
+import { shouldSuppressWsInvalidation } from "@/lib/mutation-tracker";
 
 export function useWebSocket() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -25,7 +24,9 @@ export function useWebSocket() {
           const message: WsMessage = JSON.parse(event.data);
           
           if (message.type === 'update') {
-            // Invalidate all family queries to trigger a refetch
+            if (shouldSuppressWsInvalidation()) {
+              return;
+            }
             queryClient.invalidateQueries({ queryKey: ["/api/families"] });
           }
         } catch (error) {
@@ -35,7 +36,7 @@ export function useWebSocket() {
 
       ws.onclose = () => {
         console.log("WebSocket disconnected, reconnecting...");
-        setTimeout(connect, 3000); // Reconnect after 3s
+        setTimeout(connect, 3000);
       };
 
       ws.onerror = (error) => {
@@ -49,7 +50,7 @@ export function useWebSocket() {
     return () => {
       wsRef.current?.close();
     };
-  }, [queryClient, toast]);
+  }, [queryClient]);
 
   return wsRef.current;
 }

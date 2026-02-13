@@ -256,13 +256,13 @@ export const dashboardTourSteps: TourStep[] = [
     targetSelector: '[data-testid="button-mode-locked"]',
     title: "Locked Mode",
     description: "In locked mode, tap a person tile to edit their name and details. This is for filling in information after the initial capture.",
-    position: "top",
+    position: "bottom",
   },
   {
     targetSelector: '[data-testid="button-mode-unlocked"]',
     title: "Unlocked Mode",
     description: "In unlocked mode, you can add/remove families and people, toggle person types (man/woman/boy/girl) by tapping tiles, and rearrange the structure. Use this for fast initial capture.",
-    position: "top",
+    position: "bottom",
   },
   {
     targetSelector: '[data-testid="button-add-family"]',

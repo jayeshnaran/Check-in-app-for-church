@@ -7,7 +7,7 @@ import {
   type ChurchMember, type InsertChurchMember
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
-import { eq, desc, asc, and, ilike, ne } from "drizzle-orm";
+import { eq, desc, asc, and, ilike, ne, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Churches
@@ -37,6 +37,7 @@ export interface IStorage {
   createPerson(person: InsertPerson): Promise<Person>;
   updatePerson(id: number, person: UpdatePersonRequest): Promise<Person>;
   deletePerson(id: number): Promise<void>;
+  searchAllPeople(churchId: number, query: string): Promise<(Person & { familyName: string | null; familyStatus: string | null; serviceDate: string | null })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -174,6 +175,38 @@ export class DatabaseStorage implements IStorage {
 
   async deletePerson(id: number): Promise<void> {
     await db.delete(people).where(eq(people.id, id));
+  }
+
+  async searchAllPeople(churchId: number, query: string): Promise<(Person & { familyName: string | null; familyStatus: string | null; serviceDate: string | null })[]> {
+    const searchLower = `%${query.toLowerCase()}%`;
+    const rows = await db
+      .select({
+        person: people,
+        familyName: families.name,
+        familyStatus: families.status,
+        serviceDate: families.serviceDate,
+      })
+      .from(people)
+      .innerJoin(families, eq(people.familyId, families.id))
+      .where(
+        and(
+          eq(families.churchId, churchId),
+          or(
+            ilike(people.firstName, searchLower),
+            ilike(people.lastName, searchLower),
+            ilike(sql`concat(${people.firstName}, ' ', ${people.lastName})`, searchLower)
+          )
+        )
+      )
+      .orderBy(asc(people.createdAt))
+      .limit(50);
+
+    return rows.map((r) => ({
+      ...r.person,
+      familyName: r.familyName,
+      familyStatus: r.familyStatus,
+      serviceDate: r.serviceDate,
+    }));
   }
 }
 

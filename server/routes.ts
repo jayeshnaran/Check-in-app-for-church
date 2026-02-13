@@ -187,6 +187,16 @@ export async function registerRoutes(
     }
   });
 
+  // === PEOPLE SEARCH (church-scoped, all dates) ===
+  app.get('/api/people/search', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+    const q = String(req.query.q || "").trim();
+    if (q.length < 1) return res.json([]);
+    const results = await storage.searchAllPeople(churchId, q);
+    res.json(results);
+  });
+
   // === FAMILY ROUTES (church-scoped) ===
 
   app.get(api.families.list.path, isAuthenticated, async (req: any, res) => {

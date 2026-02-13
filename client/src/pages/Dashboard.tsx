@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -135,6 +135,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   const [mode, setMode] = useState<"locked" | "unlocked">("locked");
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isOffline, setIsOffline] = useState(localStorage.getItem("offline_mode") === "true");
   const [isSyncing, setIsSyncing] = useState(false);
   const [showClashDialog, setShowClashDialog] = useState(false);
@@ -148,6 +149,24 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     window.addEventListener('focus', checkOffline);
     return () => window.removeEventListener('focus', checkOffline);
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data: globalSearchResults } = useQuery<(Person & { familyName: string | null; familyStatus: string | null; serviceDate: string | null })[]>({
+    queryKey: ["/api/people/search", debouncedSearch],
+    queryFn: async () => {
+      if (!debouncedSearch) return [];
+      const res = await fetch(`/api/people/search?q=${encodeURIComponent(debouncedSearch)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: debouncedSearch.length > 0,
+  });
+
+  const isSearching = debouncedSearch.length > 0;
 
   const handleModeSwitch = useCallback((newMode: "locked" | "unlocked") => {
     setMode(newMode);
@@ -469,117 +488,171 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
 
       {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
-        <AnimatePresence>
-          {filteredFamilies?.map((family: any) => (
-            <motion.div
-              key={family._clientKey || family.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className={`relative overflow-hidden border-2 transition-all ${
-                mode === 'unlocked' ? 'border-dashed border-primary/20 bg-primary/5' : 'border-border shadow-sm hover:shadow-md'
-              }`}>
-                {/* Family Header */}
-                <div className="p-4 border-b border-border/50 flex items-center justify-between bg-card/50">
-                  <div className="flex items-center gap-2">
-                    {mode === "locked" ? (
-                      <h3 className="font-bold text-lg text-foreground">
-                        {family.name || "Unknown Family"}
-                      </h3>
-                    ) : (
-                      <Input
-                        value={family.name || ""}
-                        onChange={(e) => {
-                          const newName = e.target.value;
-                          updateFamily.mutate({ id: family.id, name: newName });
-                          // Automatically update last name for all members
-                          family.people.forEach((person: any) => {
-                            if (!person.lastName || person.lastName === family.name) {
-                              updatePerson.mutate({ id: person.id, lastName: newName });
-                            }
-                          });
-                        }}
-                        placeholder="Family Name"
-                        className="h-8 text-sm font-bold w-40 bg-white"
-                      />
+        {isSearching ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium px-1">
+              {globalSearchResults?.length || 0} {globalSearchResults?.length === 1 ? "person" : "people"} found across all dates
+            </p>
+            {globalSearchResults && globalSearchResults.length > 0 ? (
+              <Card className="border-border shadow-sm overflow-hidden">
+                {globalSearchResults.map((person, idx) => (
+                  <button
+                    key={person.id}
+                    className={cn(
+                      "w-full text-left px-4 py-3 flex items-center gap-3 hover-elevate focus:outline-none",
+                      idx > 0 && "border-t border-border/50"
                     )}
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "cursor-pointer transition-colors",
-                        family.status === 'newcomer' ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200"
+                    onClick={() => setEditingPerson(person)}
+                    data-testid={`search-result-${person.id}`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      {person.type === "man" || person.type === "woman" ? (
+                        <User className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Users className="w-4 h-4 text-primary" />
                       )}
-                      onClick={() => {
-                        if (mode === 'unlocked') {
-                          const newStatus = family.status === 'newcomer' ? 'visitor' : 'newcomer';
-                          updateFamily.mutate({ id: family.id, status: newStatus });
-                        }
-                      }}
-                    >
-                      {family.status === 'newcomer' ? 'Newcomer' : 'Visitor'}
-                    </Badge>
-                  </div>
-                  
-                  {mode === "unlocked" && (
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={family.status === 'visitor'}
-                        onCheckedChange={(checked) => {
-                          const newStatus = checked ? 'visitor' : 'newcomer';
-                          updateFamily.mutate({ id: family.id, status: newStatus });
-                        }}
-                        className="scale-75"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          if (confirm("Delete this family and all members?")) {
-                            deleteFamily.mutate(family.id);
-                          }
-                        }}
-                        className="text-muted-foreground hover:text-destructive h-8 w-8"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </div>
-                  )}
-                </div>
-
-                {/* People Grid */}
-                <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
-                  {[...family.people].sort((a: any, b: any) => {
-                    const keyA = a._clientKey || '';
-                    const keyB = b._clientKey || '';
-                    if (keyA && keyB) return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
-                    const timeA = new Date(a.createdAt || 0).getTime();
-                    const timeB = new Date(b.createdAt || 0).getTime();
-                    return timeA - timeB || a.id - b.id;
-                  }).map((person: any) => (
-                    <PersonTile
-                      key={person._clientKey || person.id}
-                      person={person}
-                      mode={mode}
-                      onToggleType={() => handleTogglePersonType(person)}
-                      onEdit={() => setEditingPerson(person)}
-                      onDelete={() => deletePerson.mutate(person.id)}
-                    />
-                  ))}
-                  {mode === "unlocked" && (
-                    <AddPersonTile key="add-button" onClick={(e) => handleAddPerson(e, family.id)} />
-                  )}
-                </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate" data-testid={`search-result-name-${person.id}`}>
+                        {[person.firstName, person.lastName].filter(Boolean).join(" ") || "Unnamed"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {person.familyName || "Unknown"} family
+                        {person.serviceDate && ` \u00B7 First seen ${person.serviceDate}`}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0",
+                        (person as any).familyStatus === 'newcomer' ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200"
+                      )}
+                    >
+                      {(person as any).familyStatus === 'newcomer' ? 'Newcomer' : 'Visitor'}
+                    </Badge>
+                  </button>
+                ))}
               </Card>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {filteredFamilies?.length === 0 && (
-          <div className="text-center py-12 opacity-50">
-            <p>No families found.</p>
+            ) : (
+              <div className="text-center py-12 opacity-50">
+                <p>No people found matching "{debouncedSearch}"</p>
+              </div>
+            )}
           </div>
+        ) : (
+          <>
+            <AnimatePresence>
+              {filteredFamilies?.map((family: any) => (
+                <motion.div
+                  key={family._clientKey || family.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className={`relative overflow-hidden border-2 transition-all ${
+                    mode === 'unlocked' ? 'border-dashed border-primary/20 bg-primary/5' : 'border-border shadow-sm hover:shadow-md'
+                  }`}>
+                    {/* Family Header */}
+                    <div className="p-4 border-b border-border/50 flex items-center justify-between bg-card/50">
+                      <div className="flex items-center gap-2">
+                        {mode === "locked" ? (
+                          <h3 className="font-bold text-lg text-foreground">
+                            {family.name || "Unknown Family"}
+                          </h3>
+                        ) : (
+                          <Input
+                            value={family.name || ""}
+                            onChange={(e) => {
+                              const newName = e.target.value;
+                              updateFamily.mutate({ id: family.id, name: newName });
+                              family.people.forEach((person: any) => {
+                                if (!person.lastName || person.lastName === family.name) {
+                                  updatePerson.mutate({ id: person.id, lastName: newName });
+                                }
+                              });
+                            }}
+                            placeholder="Family Name"
+                            className="h-8 text-sm font-bold w-40 bg-white"
+                          />
+                        )}
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            family.status === 'newcomer' ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200"
+                          )}
+                          onClick={() => {
+                            if (mode === 'unlocked') {
+                              const newStatus = family.status === 'newcomer' ? 'visitor' : 'newcomer';
+                              updateFamily.mutate({ id: family.id, status: newStatus });
+                            }
+                          }}
+                        >
+                          {family.status === 'newcomer' ? 'Newcomer' : 'Visitor'}
+                        </Badge>
+                      </div>
+                      
+                      {mode === "unlocked" && (
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={family.status === 'visitor'}
+                            onCheckedChange={(checked) => {
+                              const newStatus = checked ? 'visitor' : 'newcomer';
+                              updateFamily.mutate({ id: family.id, status: newStatus });
+                            }}
+                            className="scale-75"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm("Delete this family and all members?")) {
+                                deleteFamily.mutate(family.id);
+                              }
+                            }}
+                            className="text-muted-foreground hover:text-destructive h-8 w-8"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* People Grid */}
+                    <div className="p-4 grid grid-cols-3 gap-3 items-start content-start min-h-[100px]">
+                      {[...family.people].sort((a: any, b: any) => {
+                        const keyA = a._clientKey || '';
+                        const keyB = b._clientKey || '';
+                        if (keyA && keyB) return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
+                        const timeA = new Date(a.createdAt || 0).getTime();
+                        const timeB = new Date(b.createdAt || 0).getTime();
+                        return timeA - timeB || a.id - b.id;
+                      }).map((person: any) => (
+                        <PersonTile
+                          key={person._clientKey || person.id}
+                          person={person}
+                          mode={mode}
+                          onToggleType={() => handleTogglePersonType(person)}
+                          onEdit={() => setEditingPerson(person)}
+                          onDelete={() => deletePerson.mutate(person.id)}
+                        />
+                      ))}
+                      {mode === "unlocked" && (
+                        <AddPersonTile key="add-button" onClick={(e) => handleAddPerson(e, family.id)} />
+                      )}
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {filteredFamilies?.length === 0 && (
+              <div className="text-center py-12 opacity-50">
+                <p>No families found.</p>
+              </div>
+            )}
+          </>
         )}
       </main>
 

@@ -331,7 +331,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   const handleExportCSV = () => {
     if (!families) return;
     
-    let csvContent = "data:text/csv;charset=utf-8,Family,Status,First Name,Last Name,Type,Age Bracket\n";
+    let csvContent = "Family,Status,First Name,Last Name,Type,Age Bracket\n";
     
     families.forEach(family => {
       family.people.forEach(person => {
@@ -342,7 +342,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
           person.lastName || "",
           person.type,
           person.ageBracket || ""
-        ].join(",");
+        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",");
         csvContent += row + "\n";
       });
     });

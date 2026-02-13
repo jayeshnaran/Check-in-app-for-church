@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon, User } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -36,6 +36,26 @@ function isSunday(date: Date): boolean {
 
 function formatDateStr(date: Date): string {
   return format(date, "yyyy-MM-dd");
+}
+
+function getPrevSunday(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() - 7);
+  return formatDateStr(d);
+}
+
+function getNextSunday(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + 7);
+  return formatDateStr(d);
+}
+
+function isNextSundayInFuture(dateStr: string): boolean {
+  const next = new Date(dateStr + "T00:00:00");
+  next.setDate(next.getDate() + 7);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return next > today;
 }
 
 export default function Dashboard() {
@@ -290,6 +310,39 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     handleManualSync();
   };
 
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (mode !== "locked") return;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (mode !== "locked" || touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaY) > Math.abs(deltaX)) return;
+    if (deltaX > 0) {
+      navigateSunday("prev");
+    } else {
+      navigateSunday("next");
+    }
+  };
+
+  const canGoNext = !isNextSundayInFuture(session.date);
+
+  const navigateSunday = (direction: "prev" | "next") => {
+    if (direction === "next" && !canGoNext) return;
+    const newDate = direction === "prev" ? getPrevSunday(session.date) : getNextSunday(session.date);
+    const newSession = { date: newDate, time: session.time };
+    localStorage.setItem("service_session", JSON.stringify(newSession));
+    setSession(newSession);
+  };
+
   const pendingSyncFamilies = useRef<any[]>([]);
 
   const handleAcceptServerChanges = () => {
@@ -406,7 +459,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-20" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex flex-col gap-3">
@@ -431,18 +484,39 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                   <RefreshCw className="w-5 h-5" />
                 )}
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-[10px] px-2 font-bold rounded-full border border-primary/20 bg-primary/5 text-primary"
-                onClick={() => {
-                  localStorage.removeItem("service_session");
-                  setSession(null);
-                }}
-                data-testid="button-session-info"
-              >
-                {session?.date.split('-').slice(1).join('/')} @ {session?.time}
-              </Button>
+              <div className="flex items-center gap-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigateSunday("prev")}
+                  className="rounded-full h-7 w-7"
+                  data-testid="button-prev-sunday"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-[10px] px-2 font-bold rounded-full border border-primary/20 bg-primary/5 text-primary"
+                  onClick={() => {
+                    localStorage.removeItem("service_session");
+                    setSession(null);
+                  }}
+                  data-testid="button-session-info"
+                >
+                  {session?.date.split('-').slice(1).join('/')} @ {session?.time}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigateSunday("next")}
+                  disabled={!canGoNext}
+                  className={cn("rounded-full h-7 w-7", !canGoNext && "opacity-30 cursor-not-allowed")}
+                  data-testid="button-next-sunday"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
               <Link href="/settings">
                 <Button variant="ghost" size="icon" className="rounded-full" data-testid="button-settings">
                   <Settings className="w-5 h-5" />

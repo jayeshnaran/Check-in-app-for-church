@@ -168,10 +168,6 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
 
   const isSearching = debouncedSearch.length > 0;
 
-  const handleModeSwitch = useCallback((newMode: "locked" | "unlocked") => {
-    setMode(newMode);
-  }, []);
-
   const { data: families, isLoading } = useFamilies(session.date, session.time);
   const createFamily = useCreateFamily();
   const updateFamily = useUpdateFamily();
@@ -287,6 +283,11 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleModeSwitch = (newMode: "locked" | "unlocked") => {
+    setMode(newMode);
+    handleManualSync();
   };
 
   const pendingSyncFamilies = useRef<any[]>([]);

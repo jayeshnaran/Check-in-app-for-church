@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User, Link2, Unlink, CheckCircle2, AlertCircle, UserMinus } from "lucide-react";
-import { Link } from "wouter";
+import { ArrowLeft, Save, Check, X, Loader2, Users, Church, LogOut, User, Link2, Unlink, CheckCircle2, AlertCircle, UserMinus, HelpCircle } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +17,7 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [offlineMode, setOfflineMode] = useState(localStorage.getItem("offline_mode") === "true");
   const [serviceTimes, setServiceTimes] = useState<string[]>(JSON.parse(localStorage.getItem("service_times") || '["09:30"]'));
   const [newTime, setNewTime] = useState("");
@@ -499,6 +500,26 @@ export default function Settings() {
                 data-testid="switch-offline-mode"
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-3xl border-none shadow-sm bg-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Help</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl h-11 gap-2"
+              onClick={() => setLocation("/?tour=1")}
+              data-testid="button-take-tour"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Take a Tour
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Walk through the app with an interactive guide that shows you each feature.
+            </p>
           </CardContent>
         </Card>
 

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson, ServiceSessionContext } from "@/hooks/use-families";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
 import { EditPersonDialog } from "@/components/EditPersonDialog";
+import { GuidedTour, dashboardTourSteps } from "@/components/GuidedTour";
 import { type Person, type Family } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -160,6 +161,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   const [isSyncing, setIsSyncing] = useState(false);
   const [showClashDialog, setShowClashDialog] = useState(false);
   const [clashes, setClashes] = useState<ClashInfo[]>([]);
+  const [showTour, setShowTour] = useState(false);
   const lastSyncTimestamps = useRef<Record<number, string>>({});
 
   useEffect(() => {
@@ -168,6 +170,15 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
     };
     window.addEventListener('focus', checkOffline);
     return () => window.removeEventListener('focus', checkOffline);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tour") === "1") {
+      setShowTour(true);
+      setMode("unlocked");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
@@ -759,6 +770,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
               size="lg"
               className="h-14 w-14 rounded-full shadow-xl bg-primary hover:bg-primary/90"
               onClick={handleAddFamily}
+              data-testid="button-add-family"
             >
               <Plus className="w-6 h-6" />
             </Button>
@@ -814,6 +826,12 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <GuidedTour
+        steps={dashboardTourSteps}
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+      />
     </div>
   );
 }

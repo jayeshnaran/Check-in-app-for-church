@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,6 +129,17 @@ export default function Settings() {
 
   const [churchName, setChurchName] = useState(membership?.church?.name || "");
   const [churchDesc, setChurchDesc] = useState(membership?.church?.description || "");
+  const [pcoFieldStatus, setPcoFieldStatus] = useState(membership?.church?.pcoFieldMembershipStatus || "");
+  const [pcoFieldAge, setPcoFieldAge] = useState(membership?.church?.pcoFieldAgeBracket || "");
+
+  useEffect(() => {
+    if (membership?.church) {
+      setChurchName(membership.church.name || "");
+      setChurchDesc(membership.church.description || "");
+      setPcoFieldStatus(membership.church.pcoFieldMembershipStatus || "");
+      setPcoFieldAge(membership.church.pcoFieldAgeBracket || "");
+    }
+  }, [membership?.church]);
 
   const updateChurch = useMutation({
     mutationFn: async () => {
@@ -142,6 +153,21 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
       toast({ title: "Updated", description: "Church info has been saved." });
+    },
+  });
+
+  const savePcoFields = useMutation({
+    mutationFn: async () => {
+      if (!membership) return;
+      const res = await apiRequest("PUT", `/api/churches/${membership.churchId}`, {
+        pcoFieldMembershipStatus: pcoFieldStatus || null,
+        pcoFieldAgeBracket: pcoFieldAge || null,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
+      toast({ title: "Saved", description: "PCO custom field IDs have been updated." });
     },
   });
 
@@ -419,6 +445,46 @@ export default function Settings() {
                         <>
                           <Unlink className="w-4 h-4 mr-1" />
                           Disconnect
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="border-t pt-4 space-y-3">
+                    <p className="text-sm font-medium">Custom Field IDs</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enter the PCO field definition IDs for the custom fields you want to populate when pushing people. You can find these in your PCO People custom fields settings.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="pco-field-status" className="text-xs">Membership Status Field ID</Label>
+                      <Input
+                        id="pco-field-status"
+                        placeholder="e.g. 781090"
+                        value={pcoFieldStatus}
+                        onChange={(e) => setPcoFieldStatus(e.target.value)}
+                        data-testid="input-pco-field-status"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pco-field-age" className="text-xs">Age Bracket Field ID</Label>
+                      <Input
+                        id="pco-field-age"
+                        placeholder="e.g. 826722"
+                        value={pcoFieldAge}
+                        onChange={(e) => setPcoFieldAge(e.target.value)}
+                        data-testid="input-pco-field-age"
+                      />
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => savePcoFields.mutate()}
+                      disabled={savePcoFields.isPending}
+                      data-testid="button-save-pco-fields"
+                    >
+                      {savePcoFields.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                        <>
+                          <Save className="w-4 h-4 mr-1" />
+                          Save Field IDs
                         </>
                       )}
                     </Button>

@@ -59,8 +59,8 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Only admins can update church info" });
     }
     try {
-      const { name, description, logoUrl } = req.body;
-      const updated = await storage.updateChurch(churchId, { name, description, logoUrl });
+      const { name, description, logoUrl, pcoFieldMembershipStatus, pcoFieldAgeBracket } = req.body;
+      const updated = await storage.updateChurch(churchId, { name, description, logoUrl, pcoFieldMembershipStatus, pcoFieldAgeBracket });
       res.json(updated);
     } catch (err) {
       res.status(400).json({ message: "Failed to update church" });

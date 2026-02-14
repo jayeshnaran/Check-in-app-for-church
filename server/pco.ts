@@ -138,9 +138,6 @@ export async function getValidToken(church: Church): Promise<string | null> {
   return refreshTokenIfNeeded(church);
 }
 
-const PCO_FIELD_DEF_STATUS = "781090";
-const PCO_FIELD_DEF_AGE_BRACKET = "826722";
-
 export async function createPersonInPco(
   church: Church,
   person: {
@@ -187,15 +184,15 @@ export async function createPersonInPco(
   const data = await res.json();
   const pcoPersonId = data.data.id;
 
-  if (familyStatus) {
+  if (familyStatus && church.pcoFieldMembershipStatus) {
     const year = new Date().getFullYear();
     const statusLabel = familyStatus === "visitor" ? "Visitor" : "Newcomer";
     const statusValue = `${year} ${statusLabel}`;
-    await setFieldDatum(token, pcoPersonId, PCO_FIELD_DEF_STATUS, statusValue);
+    await setFieldDatum(token, pcoPersonId, church.pcoFieldMembershipStatus, statusValue);
   }
 
-  if (person.ageBracket) {
-    await setFieldDatum(token, pcoPersonId, PCO_FIELD_DEF_AGE_BRACKET, person.ageBracket);
+  if (person.ageBracket && church.pcoFieldAgeBracket) {
+    await setFieldDatum(token, pcoPersonId, church.pcoFieldAgeBracket, person.ageBracket);
   }
 
   return {

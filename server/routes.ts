@@ -563,6 +563,34 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/pco/person/:pcoPersonId', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const church = await storage.getChurch(churchId);
+    if (!church || !church.pcoAccessToken) {
+      return res.status(400).json({ message: "Planning Center not connected" });
+    }
+
+    const pcoPersonId = req.params.pcoPersonId;
+    const hasCheckin = await storage.hasPcoCheckinForPerson(churchId, pcoPersonId);
+    if (!hasCheckin) {
+      return res.status(404).json({ message: "Person not found in this church's check-ins" });
+    }
+
+    try {
+      const { fetchPersonFromPco } = await import("./pco");
+      const person = await fetchPersonFromPco(church, pcoPersonId);
+      if (!person) {
+        return res.status(404).json({ message: "Person not found in PCO" });
+      }
+      res.json(person);
+    } catch (err: any) {
+      console.error("PCO fetch person error:", err);
+      res.status(500).json({ message: "Failed to fetch person from PCO" });
+    }
+  });
+
   app.get('/api/pco/checkins', isAuthenticated, async (req: any, res) => {
     const churchId = await getUserChurchId(req);
     if (!churchId) return res.status(403).json({ message: "No approved church membership" });

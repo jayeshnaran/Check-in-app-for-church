@@ -1022,21 +1022,20 @@ function CheckinsView({
               onClick={() => onEdit(checkin)}
               data-testid={`checkin-row-${checkin.id}`}
             >
-              <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                checkin.child ? "bg-blue-100 dark:bg-blue-900/30" : "bg-primary/10"
-              )}>
-                <User className={cn("w-4 h-4", checkin.child ? "text-blue-600 dark:text-blue-400" : "text-primary")} />
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10">
+                <User className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate" data-testid={`checkin-name-${checkin.id}`}>
                   {[checkin.firstName, checkin.lastName].filter(Boolean).join(" ") || "Unnamed"}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {checkin.gender === "F" ? "Female" : "Male"}
-                  {checkin.child ? " (Child)" : ""}
-                  {checkin.ageBracket ? ` \u00B7 ${checkin.ageBracket}` : ""}
-                  {checkin.eventName ? ` \u00B7 ${checkin.eventName}` : ""}
+                  {[
+                    checkin.gender === "F" ? "Female" : checkin.gender === "M" ? "Male" : null,
+                    checkin.child ? "Child" : null,
+                    checkin.ageBracket,
+                    checkin.eventName,
+                  ].filter(Boolean).join(" \u00B7 ") || "Tap to view details"}
                 </p>
               </div>
               {checkin.membershipStatus && (

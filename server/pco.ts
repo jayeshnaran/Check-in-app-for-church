@@ -496,6 +496,69 @@ export async function fetchCheckinsForEvent(
   return allCheckins;
 }
 
+export async function fetchPersonFromPco(
+  church: Church,
+  pcoPersonId: string
+): Promise<{
+  firstName: string | null;
+  lastName: string | null;
+  gender: string | null;
+  child: boolean | null;
+  ageBracket: string | null;
+  membershipStatus: string | null;
+} | null> {
+  const token = await getValidToken(church);
+  if (!token) return null;
+
+  const personRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!personRes.ok) {
+    console.error(`PCO fetch person ${pcoPersonId} failed:`, await personRes.text());
+    return null;
+  }
+
+  const personData = await personRes.json();
+  const attrs = personData.data?.attributes || {};
+
+  const result: {
+    firstName: string | null;
+    lastName: string | null;
+    gender: string | null;
+    child: boolean | null;
+    ageBracket: string | null;
+    membershipStatus: string | null;
+  } = {
+    firstName: attrs.first_name || null,
+    lastName: attrs.last_name || null,
+    gender: attrs.gender === "Female" ? "F" : attrs.gender === "Male" ? "M" : null,
+    child: typeof attrs.child === "boolean" ? attrs.child : null,
+    ageBracket: null,
+    membershipStatus: null,
+  };
+
+  const fieldRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/field_data`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (fieldRes.ok) {
+    const fieldData = await fieldRes.json();
+    for (const datum of fieldData.data || []) {
+      const fdRel = datum.relationships?.field_definition?.data;
+      if (!fdRel) continue;
+      if (church.pcoFieldAgeBracket && fdRel.id === church.pcoFieldAgeBracket) {
+        result.ageBracket = datum.attributes.value || null;
+      }
+      if (church.pcoFieldMembershipStatus && fdRel.id === church.pcoFieldMembershipStatus) {
+        result.membershipStatus = datum.attributes.value || null;
+      }
+    }
+  }
+
+  return result;
+}
+
 export async function fetchPersonFieldData(
   church: Church,
   pcoPersonId: string,

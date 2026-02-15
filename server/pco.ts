@@ -403,82 +403,96 @@ export interface PcoCheckinRecord {
   eventName: string | null;
 }
 
-export async function fetchCheckinsForYear(
+export async function fetchCheckinsForEvent(
   church: Church,
-  year: number
+  eventId: string,
+  targetDate?: string
 ): Promise<PcoCheckinRecord[]> {
   const token = await getValidToken(church);
   if (!token) return [];
 
-  const allCheckins: PcoCheckinRecord[] = [];
-  const seenPersonDates = new Set<string>();
-  let nextUrl: string | null = `${PCO_CHECKINS_API}/check_ins?include=event,person&per_page=100&order=-created_at`;
+  // Step 1: Fetch all event periods for this event (paginated)
+  const eventPeriods: Array<{ id: string; endsAt: string; date: string }> = [];
+  let periodsUrl: string | null = `${PCO_CHECKINS_API}/events/${eventId}/event_periods?per_page=100`;
 
-  const yearStart = `${year}-01-01T00:00:00Z`;
-
-  while (nextUrl) {
-    const res = await fetch(nextUrl, {
+  while (periodsUrl) {
+    const res: Response = await fetch(periodsUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error("PCO fetch check-ins failed:", errText);
+      console.error("PCO fetch event_periods failed:", errText);
       break;
     }
 
-    const data = await res.json();
-    const included = data.included || [];
-
-    const personMap = new Map<string, any>();
-    const eventMap = new Map<string, any>();
-    for (const inc of included) {
-      if (inc.type === "Person") personMap.set(inc.id, inc);
-      if (inc.type === "Event") eventMap.set(inc.id, inc);
+    const data: any = await res.json();
+    for (const period of data.data || []) {
+      const endsAt = period.attributes.ends_at || "";
+      const date = endsAt.split("T")[0]; // e.g. "2026-02-15"
+      eventPeriods.push({ id: period.id, endsAt, date });
     }
 
-    let reachedPreviousYear = false;
+    periodsUrl = data.links?.next || null;
+  }
 
-    for (const checkin of data.data || []) {
-      const createdAt = checkin.attributes.created_at;
-      if (createdAt && createdAt < yearStart) {
-        reachedPreviousYear = true;
+  console.log(`Found ${eventPeriods.length} event periods for event ${eventId}`);
+
+  // Step 2: Filter event periods by target date if provided
+  let periodsToFetch = eventPeriods;
+  if (targetDate) {
+    periodsToFetch = eventPeriods.filter(ep => ep.date === targetDate);
+    if (periodsToFetch.length === 0) {
+      console.log(`No event period found for date ${targetDate}`);
+      return [];
+    }
+  }
+
+  // Step 3: For each event period, fetch check-ins (paginated)
+  const allCheckins: PcoCheckinRecord[] = [];
+  const seenPersonDates = new Set<string>();
+
+  for (const period of periodsToFetch) {
+    let checkinsUrl: string | null = `${PCO_CHECKINS_API}/events/${eventId}/event_periods/${period.id}/check_ins?per_page=100`;
+
+    while (checkinsUrl) {
+      const res: Response = await fetch(checkinsUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`PCO fetch check-ins for period ${period.id} failed:`, errText);
         break;
       }
 
-      const personRel = checkin.relationships?.person?.data;
-      const eventRel = checkin.relationships?.event?.data;
-      if (!personRel) continue;
+      const data: any = await res.json();
 
-      const person = personMap.get(personRel.id);
-      if (!person) continue;
+      for (const checkin of data.data || []) {
+        const personRel = checkin.relationships?.person?.data;
+        if (!personRel) continue;
 
-      const checkinDateRaw = createdAt || "";
-      const checkinDate = checkinDateRaw.split("T")[0];
-      
-      const dedupeKey = `${personRel.id}-${checkinDate}`;
-      if (seenPersonDates.has(dedupeKey)) continue;
-      seenPersonDates.add(dedupeKey);
+        const dedupeKey = `${personRel.id}-${period.date}`;
+        if (seenPersonDates.has(dedupeKey)) continue;
+        seenPersonDates.add(dedupeKey);
 
-      const event = eventRel ? eventMap.get(eventRel.id) : null;
+        allCheckins.push({
+          pcoPersonId: personRel.id,
+          pcoCheckinId: checkin.id,
+          firstName: checkin.attributes.first_name || "",
+          lastName: checkin.attributes.last_name || "",
+          gender: null,
+          child: checkin.attributes.kind === "Guest" ? false : false,
+          checkinDate: period.date,
+          eventName: null,
+        });
+      }
 
-      allCheckins.push({
-        pcoPersonId: personRel.id,
-        pcoCheckinId: checkin.id,
-        firstName: person.attributes.first_name || "",
-        lastName: person.attributes.last_name || "",
-        gender: person.attributes.gender || null,
-        child: person.attributes.child || false,
-        checkinDate,
-        eventName: event?.attributes?.name || null,
-      });
+      checkinsUrl = data.links?.next || null;
     }
-
-    if (reachedPreviousYear) break;
-
-    nextUrl = data.links?.next || null;
   }
 
+  console.log(`Fetched ${allCheckins.length} check-ins total`);
   return allCheckins;
 }
 

@@ -289,13 +289,21 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   const handleSyncCheckins = async () => {
     setIsSyncingCheckins(true);
     try {
-      const sessionYear = parseInt(session.date.split("-")[0], 10) || new Date().getFullYear();
-      const res = await apiRequest("POST", "/api/pco/sync-checkins", { year: sessionYear });
+      const res = await apiRequest("POST", "/api/pco/sync-checkins", { date: session.date });
       const result = await res.json();
       toast({ title: "Synced", description: `${result.synced} check-ins synced from PCO` });
       queryClient.invalidateQueries({ queryKey: ["/api/pco/checkins", session.date] });
-    } catch {
-      toast({ title: "Sync Failed", description: "Could not sync check-ins from PCO", variant: "destructive" });
+    } catch (err: any) {
+      let msg = "Could not sync check-ins from PCO";
+      try {
+        const errMsg = err?.message || "";
+        const jsonMatch = errMsg.match(/\d+:\s*(.*)/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed?.message) msg = parsed.message;
+        }
+      } catch {}
+      toast({ title: "Sync Failed", description: msg, variant: "destructive" });
     } finally {
       setIsSyncingCheckins(false);
     }

@@ -46,6 +46,7 @@ export interface IStorage {
   getPcoCheckin(id: number): Promise<PcoCheckin | undefined>;
   updatePcoCheckin(id: number, updates: Partial<PcoCheckin>): Promise<PcoCheckin>;
   clearPcoCheckinsForYear(churchId: number, year: number): Promise<void>;
+  clearPcoCheckinsForDate(churchId: number, date: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -272,6 +273,15 @@ export class DatabaseStorage implements IStorage {
         eq(pcoCheckins.churchId, churchId),
         sql`${pcoCheckins.checkinDate} >= ${yearStart}`,
         sql`${pcoCheckins.checkinDate} <= ${yearEnd}`
+      )
+    );
+  }
+
+  async clearPcoCheckinsForDate(churchId: number, date: string): Promise<void> {
+    await db.delete(pcoCheckins).where(
+      and(
+        eq(pcoCheckins.churchId, churchId),
+        eq(pcoCheckins.checkinDate, date)
       )
     );
   }

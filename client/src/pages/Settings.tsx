@@ -131,6 +131,7 @@ export default function Settings() {
   const [churchDesc, setChurchDesc] = useState(membership?.church?.description || "");
   const [pcoFieldStatus, setPcoFieldStatus] = useState(membership?.church?.pcoFieldMembershipStatus || "");
   const [pcoFieldAge, setPcoFieldAge] = useState(membership?.church?.pcoFieldAgeBracket || "");
+  const [pcoEventId, setPcoEventId] = useState(membership?.church?.pcoEventId || "");
 
   useEffect(() => {
     if (membership?.church) {
@@ -138,6 +139,7 @@ export default function Settings() {
       setChurchDesc(membership.church.description || "");
       setPcoFieldStatus(membership.church.pcoFieldMembershipStatus || "");
       setPcoFieldAge(membership.church.pcoFieldAgeBracket || "");
+      setPcoEventId(membership.church.pcoEventId || "");
     }
   }, [membership?.church]);
 
@@ -162,12 +164,13 @@ export default function Settings() {
       const res = await apiRequest("PUT", `/api/churches/${membership.churchId}`, {
         pcoFieldMembershipStatus: pcoFieldStatus || null,
         pcoFieldAgeBracket: pcoFieldAge || null,
+        pcoEventId: pcoEventId || null,
       });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
-      toast({ title: "Saved", description: "PCO custom field IDs have been updated." });
+      toast({ title: "Saved", description: "PCO settings have been updated." });
     },
   });
 
@@ -450,6 +453,22 @@ export default function Settings() {
                     </Button>
                   </div>
                   <div className="border-t pt-4 space-y-3">
+                    <p className="text-sm font-medium">Check-Ins Event</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enter the PCO Event ID for the weekly service you want to sync check-ins from. Find it in your PCO Check-Ins event URL.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="pco-event-id" className="text-xs">Event ID</Label>
+                      <Input
+                        id="pco-event-id"
+                        placeholder="e.g. 381296"
+                        value={pcoEventId}
+                        onChange={(e) => setPcoEventId(e.target.value)}
+                        data-testid="input-pco-event-id"
+                      />
+                    </div>
+                  </div>
+                  <div className="border-t pt-4 space-y-3">
                     <p className="text-sm font-medium">Custom Field IDs</p>
                     <p className="text-xs text-muted-foreground">
                       Enter the PCO field definition IDs for the custom fields you want to populate when pushing people. You can find these in your PCO People custom fields settings.
@@ -484,7 +503,7 @@ export default function Settings() {
                       {savePcoFields.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                         <>
                           <Save className="w-4 h-4 mr-1" />
-                          Save Field IDs
+                          Save PCO Settings
                         </>
                       )}
                     </Button>

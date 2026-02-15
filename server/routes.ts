@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { isPcoConfigured, generateOAuthState, getOAuthUrl, exchangeCodeForTokens, pushFamilyToPco, testPcoConnection, fetchCheckinsForYear, updatePersonInPco, updateFieldDatum, fetchPersonFieldData } from "./pco";
+import { isPcoConfigured, generateOAuthState, getOAuthUrl, exchangeCodeForTokens, pushFamilyToPco, testPcoConnection, fetchCheckinsForEvent, updatePersonInPco, updateFieldDatum, fetchPersonFieldData } from "./pco";
 
 async function getUserChurchId(req: any): Promise<number | null> {
   const userId = req.user?.claims?.sub;
@@ -59,8 +59,8 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Only admins can update church info" });
     }
     try {
-      const { name, description, logoUrl, pcoFieldMembershipStatus, pcoFieldAgeBracket } = req.body;
-      const updated = await storage.updateChurch(churchId, { name, description, logoUrl, pcoFieldMembershipStatus, pcoFieldAgeBracket });
+      const { name, description, logoUrl, pcoFieldMembershipStatus, pcoFieldAgeBracket, pcoEventId } = req.body;
+      const updated = await storage.updateChurch(churchId, { name, description, logoUrl, pcoFieldMembershipStatus, pcoFieldAgeBracket, pcoEventId });
       res.json(updated);
     } catch (err) {
       res.status(400).json({ message: "Failed to update church" });
@@ -528,12 +528,19 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Planning Center not connected" });
     }
 
-    const year = req.body.year || new Date().getFullYear();
+    if (!church.pcoEventId) {
+      return res.status(400).json({ message: "No PCO Event ID configured. Set it in Settings." });
+    }
+
+    const targetDate = req.body.date as string;
+    if (!targetDate) {
+      return res.status(400).json({ message: "date is required (e.g. 2026-02-15)" });
+    }
 
     try {
-      const checkins = await fetchCheckinsForYear(church, year);
+      const checkins = await fetchCheckinsForEvent(church, church.pcoEventId, targetDate);
 
-      await storage.clearPcoCheckinsForYear(churchId, year);
+      await storage.clearPcoCheckinsForDate(churchId, targetDate);
 
       const records = checkins.map(c => ({
         churchId,
@@ -549,7 +556,7 @@ export async function registerRoutes(
 
       const inserted = await storage.upsertPcoCheckins(churchId, records);
 
-      res.json({ synced: records.length, newRecords: inserted, year });
+      res.json({ synced: records.length, newRecords: inserted });
     } catch (err: any) {
       console.error("PCO sync checkins error:", err);
       res.status(500).json({ message: "Failed to sync check-ins", error: err.message });

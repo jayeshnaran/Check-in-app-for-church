@@ -19,6 +19,7 @@ export const churches = pgTable("churches", {
   pcoConnectedAt: timestamp("pco_connected_at"),
   pcoFieldMembershipStatus: text("pco_field_membership_status"),
   pcoFieldAgeBracket: text("pco_field_age_bracket"),
+  pcoEventId: text("pco_event_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

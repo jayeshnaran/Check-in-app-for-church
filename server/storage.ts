@@ -1,10 +1,11 @@
 import { db } from "./db";
 import {
-  families, people, churches, churchMembers,
+  families, people, churches, churchMembers, pcoCheckins,
   type Family, type InsertFamily, type UpdateFamilyRequest,
   type Person, type InsertPerson, type UpdatePersonRequest,
   type Church, type InsertChurch,
-  type ChurchMember, type InsertChurchMember
+  type ChurchMember, type InsertChurchMember,
+  type PcoCheckin, type InsertPcoCheckin
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { eq, desc, asc, and, ilike, ne, or, sql } from "drizzle-orm";
@@ -38,6 +39,13 @@ export interface IStorage {
   updatePerson(id: number, person: UpdatePersonRequest): Promise<Person>;
   deletePerson(id: number): Promise<void>;
   searchAllPeople(churchId: number, query: string): Promise<(Person & { familyName: string | null; familyStatus: string | null; serviceDate: string | null })[]>;
+
+  // PCO Checkins
+  upsertPcoCheckins(churchId: number, records: InsertPcoCheckin[]): Promise<number>;
+  getPcoCheckinsByDate(churchId: number, date: string): Promise<PcoCheckin[]>;
+  getPcoCheckin(id: number): Promise<PcoCheckin | undefined>;
+  updatePcoCheckin(id: number, updates: Partial<PcoCheckin>): Promise<PcoCheckin>;
+  clearPcoCheckinsForYear(churchId: number, year: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -207,6 +215,65 @@ export class DatabaseStorage implements IStorage {
       familyStatus: r.familyStatus,
       serviceDate: r.serviceDate,
     }));
+  }
+
+  // PCO Checkins
+  async upsertPcoCheckins(churchId: number, records: InsertPcoCheckin[]): Promise<number> {
+    if (records.length === 0) return 0;
+    let inserted = 0;
+    for (const record of records) {
+      const existing = await db.select().from(pcoCheckins).where(
+        and(
+          eq(pcoCheckins.churchId, churchId),
+          eq(pcoCheckins.pcoPersonId, record.pcoPersonId),
+          eq(pcoCheckins.checkinDate, record.checkinDate)
+        )
+      ).limit(1);
+
+      if (existing.length > 0) {
+        await db.update(pcoCheckins).set({
+          firstName: record.firstName,
+          lastName: record.lastName,
+          gender: record.gender,
+          child: record.child,
+          eventName: record.eventName,
+          pcoCheckinId: record.pcoCheckinId,
+          syncedAt: new Date(),
+        }).where(eq(pcoCheckins.id, existing[0].id));
+      } else {
+        await db.insert(pcoCheckins).values({ ...record, churchId });
+        inserted++;
+      }
+    }
+    return inserted;
+  }
+
+  async getPcoCheckinsByDate(churchId: number, date: string): Promise<PcoCheckin[]> {
+    return db.select().from(pcoCheckins).where(
+      and(eq(pcoCheckins.churchId, churchId), eq(pcoCheckins.checkinDate, date))
+    ).orderBy(asc(pcoCheckins.lastName), asc(pcoCheckins.firstName));
+  }
+
+  async getPcoCheckin(id: number): Promise<PcoCheckin | undefined> {
+    const [checkin] = await db.select().from(pcoCheckins).where(eq(pcoCheckins.id, id));
+    return checkin;
+  }
+
+  async updatePcoCheckin(id: number, updates: Partial<PcoCheckin>): Promise<PcoCheckin> {
+    const [updated] = await db.update(pcoCheckins).set(updates).where(eq(pcoCheckins.id, id)).returning();
+    return updated;
+  }
+
+  async clearPcoCheckinsForYear(churchId: number, year: number): Promise<void> {
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year}-12-31`;
+    await db.delete(pcoCheckins).where(
+      and(
+        eq(pcoCheckins.churchId, churchId),
+        sql`${pcoCheckins.checkinDate} >= ${yearStart}`,
+        sql`${pcoCheckins.checkinDate} <= ${yearEnd}`
+      )
+    );
   }
 }
 

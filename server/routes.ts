@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { isPcoConfigured, generateOAuthState, getOAuthUrl, exchangeCodeForTokens, pushFamilyToPco, testPcoConnection } from "./pco";
+import { isPcoConfigured, generateOAuthState, getOAuthUrl, exchangeCodeForTokens, pushFamilyToPco, testPcoConnection, fetchCheckinsForYear, updatePersonInPco, updateFieldDatum, fetchPersonFieldData } from "./pco";
 
 async function getUserChurchId(req: any): Promise<number | null> {
   const userId = req.user?.claims?.sub;
@@ -515,6 +515,107 @@ export async function registerRoutes(
     }
 
     res.json({ pushed: totalPushed, failed: totalFailed, results: allResults });
+  });
+
+  // === PCO CHECK-INS SYNC ROUTES ===
+
+  app.post('/api/pco/sync-checkins', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const church = await storage.getChurch(churchId);
+    if (!church || !church.pcoAccessToken) {
+      return res.status(400).json({ message: "Planning Center not connected" });
+    }
+
+    const year = req.body.year || new Date().getFullYear();
+
+    try {
+      const checkins = await fetchCheckinsForYear(church, year);
+
+      await storage.clearPcoCheckinsForYear(churchId, year);
+
+      const records = checkins.map(c => ({
+        churchId,
+        pcoPersonId: c.pcoPersonId,
+        pcoCheckinId: c.pcoCheckinId,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        gender: c.gender,
+        child: c.child,
+        checkinDate: c.checkinDate,
+        eventName: c.eventName,
+      }));
+
+      const inserted = await storage.upsertPcoCheckins(churchId, records);
+
+      res.json({ synced: records.length, newRecords: inserted, year });
+    } catch (err: any) {
+      console.error("PCO sync checkins error:", err);
+      res.status(500).json({ message: "Failed to sync check-ins", error: err.message });
+    }
+  });
+
+  app.get('/api/pco/checkins', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const date = req.query.date as string;
+    if (!date) return res.status(400).json({ message: "date query parameter required" });
+
+    const checkins = await storage.getPcoCheckinsByDate(churchId, date);
+    res.json(checkins);
+  });
+
+  app.patch('/api/pco/checkins/:id', isAuthenticated, async (req: any, res) => {
+    const churchId = await getUserChurchId(req);
+    if (!churchId) return res.status(403).json({ message: "No approved church membership" });
+
+    const checkinId = Number(req.params.id);
+    const checkin = await storage.getPcoCheckin(checkinId);
+    if (!checkin || checkin.churchId !== churchId) {
+      return res.status(404).json({ message: "Check-in not found" });
+    }
+
+    const church = await storage.getChurch(churchId);
+    if (!church || !church.pcoAccessToken) {
+      return res.status(400).json({ message: "Planning Center not connected" });
+    }
+
+    const { firstName, lastName, gender, child, ageBracket, membershipStatus } = req.body;
+
+    // Update local cache
+    const localUpdates: any = {};
+    if (firstName !== undefined) localUpdates.firstName = firstName;
+    if (lastName !== undefined) localUpdates.lastName = lastName;
+    if (gender !== undefined) localUpdates.gender = gender;
+    if (child !== undefined) localUpdates.child = child;
+    if (ageBracket !== undefined) localUpdates.ageBracket = ageBracket;
+    if (membershipStatus !== undefined) localUpdates.membershipStatus = membershipStatus;
+
+    const updated = await storage.updatePcoCheckin(checkinId, localUpdates);
+
+    // Push to PCO People
+    const pcoUpdates: any = {};
+    if (firstName !== undefined) pcoUpdates.firstName = firstName;
+    if (lastName !== undefined) pcoUpdates.lastName = lastName;
+    if (gender !== undefined) pcoUpdates.gender = gender;
+    if (child !== undefined) pcoUpdates.child = child;
+
+    if (Object.keys(pcoUpdates).length > 0) {
+      await updatePersonInPco(church, checkin.pcoPersonId, pcoUpdates);
+    }
+
+    // Update custom fields in PCO People
+    const { updateFieldDatum: updateFD } = await import("./pco");
+    if (ageBracket !== undefined && church.pcoFieldAgeBracket) {
+      await updateFD(church, checkin.pcoPersonId, church.pcoFieldAgeBracket, ageBracket || "");
+    }
+    if (membershipStatus !== undefined && church.pcoFieldMembershipStatus) {
+      await updateFD(church, checkin.pcoPersonId, church.pcoFieldMembershipStatus, membershipStatus || "");
+    }
+
+    res.json(updated);
   });
 
   return httpServer;

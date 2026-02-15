@@ -34,7 +34,7 @@ export function getOAuthUrl(state: string): string | null {
     response_type: "code",
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
-    scope: "people",
+    scope: "people check_ins",
     state,
   });
 
@@ -388,6 +388,213 @@ export async function pushFamilyToPco(
   }
 
   return { pushed, failed, results };
+}
+
+const PCO_CHECKINS_API = "https://api.planningcenteronline.com/check-ins/v2";
+
+export interface PcoCheckinRecord {
+  pcoPersonId: string;
+  pcoCheckinId: string;
+  firstName: string;
+  lastName: string;
+  gender: string | null;
+  child: boolean;
+  checkinDate: string;
+  eventName: string | null;
+}
+
+export async function fetchCheckinsForYear(
+  church: Church,
+  year: number
+): Promise<PcoCheckinRecord[]> {
+  const token = await getValidToken(church);
+  if (!token) return [];
+
+  const allCheckins: PcoCheckinRecord[] = [];
+  const seenPersonDates = new Set<string>();
+  let nextUrl: string | null = `${PCO_CHECKINS_API}/check_ins?include=event,person&per_page=100&order=-created_at`;
+
+  const yearStart = `${year}-01-01T00:00:00Z`;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("PCO fetch check-ins failed:", errText);
+      break;
+    }
+
+    const data = await res.json();
+    const included = data.included || [];
+
+    const personMap = new Map<string, any>();
+    const eventMap = new Map<string, any>();
+    for (const inc of included) {
+      if (inc.type === "Person") personMap.set(inc.id, inc);
+      if (inc.type === "Event") eventMap.set(inc.id, inc);
+    }
+
+    let reachedPreviousYear = false;
+
+    for (const checkin of data.data || []) {
+      const createdAt = checkin.attributes.created_at;
+      if (createdAt && createdAt < yearStart) {
+        reachedPreviousYear = true;
+        break;
+      }
+
+      const personRel = checkin.relationships?.person?.data;
+      const eventRel = checkin.relationships?.event?.data;
+      if (!personRel) continue;
+
+      const person = personMap.get(personRel.id);
+      if (!person) continue;
+
+      const checkinDateRaw = createdAt || "";
+      const checkinDate = checkinDateRaw.split("T")[0];
+      
+      const dedupeKey = `${personRel.id}-${checkinDate}`;
+      if (seenPersonDates.has(dedupeKey)) continue;
+      seenPersonDates.add(dedupeKey);
+
+      const event = eventRel ? eventMap.get(eventRel.id) : null;
+
+      allCheckins.push({
+        pcoPersonId: personRel.id,
+        pcoCheckinId: checkin.id,
+        firstName: person.attributes.first_name || "",
+        lastName: person.attributes.last_name || "",
+        gender: person.attributes.gender || null,
+        child: person.attributes.child || false,
+        checkinDate,
+        eventName: event?.attributes?.name || null,
+      });
+    }
+
+    if (reachedPreviousYear) break;
+
+    nextUrl = data.links?.next || null;
+  }
+
+  return allCheckins;
+}
+
+export async function fetchPersonFieldData(
+  church: Church,
+  pcoPersonId: string,
+  fieldDefinitionId: string
+): Promise<string | null> {
+  const token = await getValidToken(church);
+  if (!token) return null;
+
+  const res = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/field_data`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  for (const datum of data.data || []) {
+    const fdRel = datum.relationships?.field_definition?.data;
+    if (fdRel?.id === fieldDefinitionId) {
+      return datum.attributes.value || null;
+    }
+  }
+  return null;
+}
+
+export async function updatePersonInPco(
+  church: Church,
+  pcoPersonId: string,
+  updates: {
+    firstName?: string;
+    lastName?: string;
+    gender?: string;
+    child?: boolean;
+  }
+): Promise<boolean> {
+  const token = await getValidToken(church);
+  if (!token) return false;
+
+  const attributes: any = {};
+  if (updates.firstName !== undefined) attributes.first_name = updates.firstName;
+  if (updates.lastName !== undefined) attributes.last_name = updates.lastName;
+  if (updates.gender !== undefined) attributes.gender = updates.gender;
+  if (updates.child !== undefined) attributes.child = updates.child;
+
+  const res = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      data: {
+        type: "Person",
+        id: pcoPersonId,
+        attributes,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`PCO update person ${pcoPersonId} failed:`, errText);
+    return false;
+  }
+  return true;
+}
+
+export async function updateFieldDatum(
+  church: Church,
+  pcoPersonId: string,
+  fieldDefinitionId: string,
+  value: string
+): Promise<boolean> {
+  const token = await getValidToken(church);
+  if (!token) return false;
+
+  const listRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/field_data`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!listRes.ok) return false;
+
+  const listData = await listRes.json();
+  let existingDatumId: string | null = null;
+  for (const datum of listData.data || []) {
+    const fdRel = datum.relationships?.field_definition?.data;
+    if (fdRel?.id === fieldDefinitionId) {
+      existingDatumId = datum.id;
+      break;
+    }
+  }
+
+  if (existingDatumId) {
+    const patchRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/field_data/${existingDatumId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        data: {
+          type: "FieldDatum",
+          id: existingDatumId,
+          attributes: { value },
+        },
+      }),
+    });
+    if (!patchRes.ok) {
+      console.error("PCO update field datum failed:", await patchRes.text());
+      return false;
+    }
+    return true;
+  } else {
+    return setFieldDatum(token, pcoPersonId, fieldDefinitionId, value);
+  }
 }
 
 export async function testPcoConnection(church: Church): Promise<boolean> {

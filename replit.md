@@ -96,4 +96,7 @@ Preferred communication style: Simple, everyday language.
 - Automatic token refresh before API calls
 - PCO service module in `server/pco.ts` handles OAuth, token management, and People API
 - Routes: `GET /auth/pco` (OAuth redirect), `GET /auth/pco/callback` (token exchange), `GET /api/pco/status`, `POST /api/pco/disconnect`, `POST /api/pco/test`, `POST /api/pco/push-family/:familyId`, `POST /api/pco/push-all`
+- **PCO Check-Ins Sync**: `POST /api/pco/sync-checkins` fetches check-ins for a year from PCO Check-Ins API, deduplicates by person+date, caches in `pco_checkins` table. `GET /api/pco/checkins?date=` returns cached check-ins for a date. `PATCH /api/pco/checkins/:id` updates local cache and pushes edits to PCO People API (name, gender, child flag) and custom fields (age bracket, membership status).
+- **Dashboard Tabs**: When PCO is connected, dashboard shows "New People" (family cards) and "Check-ins" (PCO check-in list) tabs. Check-ins tab has "Sync from PCO" button and tappable person rows that open CheckinEditDialog.
+- Custom field IDs (pcoFieldMembershipStatus, pcoFieldAgeBracket) configurable per-church in Settings
 - Required secrets: `PCO_CLIENT_ID`, `PCO_CLIENT_SECRET`, `PCO_REDIRECT_URI`

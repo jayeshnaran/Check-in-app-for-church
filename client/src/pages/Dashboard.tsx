@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useFamilies, useCreateFamily, useUpdateFamily, useDeleteFamily, useCreatePerson, useUpdatePerson, useDeletePerson, ServiceSessionContext } from "@/hooks/use-families";
 import { PersonTile, AddPersonTile } from "@/components/PersonTile";
 import { EditPersonDialog } from "@/components/EditPersonDialog";
+import { CheckinEditDialog } from "@/components/CheckinEditDialog";
 import { GuidedTour, dashboardTourSteps } from "@/components/GuidedTour";
-import { type Person, type Family } from "@shared/schema";
+import { type Person, type Family, type PcoCheckin } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon, User, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Lock, Unlock, Loader2, Users, Settings, Database, Download, AlertTriangle, Upload, RefreshCw, CalendarIcon, User, ChevronLeft, ChevronRight, ClipboardCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -164,6 +165,10 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   const [showTour, setShowTour] = useState(false);
   const lastSyncTimestamps = useRef<Record<number, string>>({});
 
+  const [activeTab, setActiveTab] = useState<"new-people" | "checkins">("new-people");
+  const [editingCheckin, setEditingCheckin] = useState<PcoCheckin | null>(null);
+  const [isSyncingCheckins, setIsSyncingCheckins] = useState(false);
+
   useEffect(() => {
     const checkOffline = () => {
       setIsOffline(localStorage.getItem("offline_mode") === "true");
@@ -255,6 +260,46 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
       return res.json();
     },
   });
+
+  const { data: pcoCheckins, isLoading: isLoadingCheckins } = useQuery<PcoCheckin[]>({
+    queryKey: ["/api/pco/checkins", session.date],
+    queryFn: async () => {
+      const res = await fetch(`/api/pco/checkins?date=${encodeURIComponent(session.date)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: activeTab === "checkins" && !!pcoStatus?.connected,
+  });
+
+  const updateCheckinMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: number; updates: Record<string, any> }) => {
+      const res = await apiRequest("PATCH", `/api/pco/checkins/${id}`, updates);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pco/checkins", session.date] });
+      setEditingCheckin(null);
+      toast({ title: "Saved", description: "Person updated in PCO" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update person", variant: "destructive" });
+    },
+  });
+
+  const handleSyncCheckins = async () => {
+    setIsSyncingCheckins(true);
+    try {
+      const sessionYear = parseInt(session.date.split("-")[0], 10) || new Date().getFullYear();
+      const res = await apiRequest("POST", "/api/pco/sync-checkins", { year: sessionYear });
+      const result = await res.json();
+      toast({ title: "Synced", description: `${result.synced} check-ins synced from PCO` });
+      queryClient.invalidateQueries({ queryKey: ["/api/pco/checkins", session.date] });
+    } catch {
+      toast({ title: "Sync Failed", description: "Could not sync check-ins from PCO", variant: "destructive" });
+    } finally {
+      setIsSyncingCheckins(false);
+    }
+  };
 
   const syncInitialized = useRef(false);
 
@@ -569,12 +614,52 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
               </Button>
             </div>
           </div>
+
+          {pcoStatus?.connected && (
+            <div className="flex items-center gap-1 bg-secondary/30 rounded-full p-0.5" data-testid="tab-bar">
+              <button
+                className={cn(
+                  "flex-1 text-xs font-semibold py-1.5 px-3 rounded-full transition-colors",
+                  activeTab === "new-people"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground"
+                )}
+                onClick={() => setActiveTab("new-people")}
+                data-testid="tab-new-people"
+              >
+                <Users className="w-3.5 h-3.5 inline mr-1" />
+                New People
+              </button>
+              <button
+                className={cn(
+                  "flex-1 text-xs font-semibold py-1.5 px-3 rounded-full transition-colors",
+                  activeTab === "checkins"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground"
+                )}
+                onClick={() => setActiveTab("checkins")}
+                data-testid="tab-checkins"
+              >
+                <ClipboardCheck className="w-3.5 h-3.5 inline mr-1" />
+                Check-ins
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6 space-y-6">
-        {isSearching ? (
+        {activeTab === "checkins" && pcoStatus?.connected ? (
+          <CheckinsView
+            checkins={pcoCheckins || []}
+            isLoading={isLoadingCheckins}
+            isSyncing={isSyncingCheckins}
+            onSync={handleSyncCheckins}
+            onEdit={setEditingCheckin}
+            sessionDate={session.date}
+          />
+        ) : isSearching ? (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground font-medium px-1">
               {globalSearchResults?.length || 0} {globalSearchResults?.length === 1 ? "person" : "people"} found across all dates
@@ -794,6 +879,15 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
         isSaving={updatePerson.isPending}
       />
 
+      {/* Checkin Edit Dialog */}
+      <CheckinEditDialog
+        checkin={editingCheckin}
+        isOpen={!!editingCheckin}
+        onClose={() => setEditingCheckin(null)}
+        onSave={(id, updates) => updateCheckinMutation.mutate({ id, updates })}
+        isSaving={updateCheckinMutation.isPending}
+      />
+
       {/* Clash Detection Dialog */}
       <Dialog open={showClashDialog} onOpenChange={setShowClashDialog}>
         <DialogContent className="sm:max-w-md">
@@ -832,6 +926,120 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
         isOpen={showTour}
         onClose={() => setShowTour(false)}
       />
+    </div>
+  );
+}
+
+function CheckinsView({
+  checkins,
+  isLoading,
+  isSyncing,
+  onSync,
+  onEdit,
+  sessionDate,
+}: {
+  checkins: PcoCheckin[];
+  isLoading: boolean;
+  isSyncing: boolean;
+  onSync: () => void;
+  onEdit: (c: PcoCheckin) => void;
+  sessionDate: string;
+}) {
+  const [searchFilter, setSearchFilter] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!searchFilter) return checkins;
+    const q = searchFilter.toLowerCase();
+    return checkins.filter(
+      (c) =>
+        c.firstName?.toLowerCase().includes(q) ||
+        c.lastName?.toLowerCase().includes(q)
+    );
+  }, [checkins, searchFilter]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground font-medium">
+          {filtered.length} {filtered.length === 1 ? "person" : "people"} checked in
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onSync}
+          disabled={isSyncing}
+          data-testid="button-sync-checkins"
+        >
+          {isSyncing ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-1" />
+          ) : (
+            <Download className="w-4 h-4 mr-1" />
+          )}
+          {isSyncing ? "Syncing..." : "Sync from PCO"}
+        </Button>
+      </div>
+
+      {checkins.length > 5 && (
+        <Input
+          placeholder="Filter checked-in people..."
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          className="bg-secondary/30 border-secondary-foreground/10"
+          data-testid="input-checkin-filter"
+        />
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <ClipboardCheck className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-muted-foreground text-sm">
+            {checkins.length === 0
+              ? "No check-in data for this date. Tap 'Sync from PCO' to pull check-ins."
+              : "No matches found."}
+          </p>
+        </div>
+      ) : (
+        <Card className="border-border shadow-sm overflow-hidden">
+          {filtered.map((checkin, idx) => (
+            <button
+              key={checkin.id}
+              className={cn(
+                "w-full text-left px-4 py-3 flex items-center gap-3 hover-elevate focus:outline-none",
+                idx > 0 && "border-t border-border/50"
+              )}
+              onClick={() => onEdit(checkin)}
+              data-testid={`checkin-row-${checkin.id}`}
+            >
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                checkin.child ? "bg-blue-100 dark:bg-blue-900/30" : "bg-primary/10"
+              )}>
+                <User className={cn("w-4 h-4", checkin.child ? "text-blue-600 dark:text-blue-400" : "text-primary")} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate" data-testid={`checkin-name-${checkin.id}`}>
+                  {[checkin.firstName, checkin.lastName].filter(Boolean).join(" ") || "Unnamed"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {checkin.gender === "F" ? "Female" : "Male"}
+                  {checkin.child ? " (Child)" : ""}
+                  {checkin.ageBracket ? ` \u00B7 ${checkin.ageBracket}` : ""}
+                  {checkin.eventName ? ` \u00B7 ${checkin.eventName}` : ""}
+                </p>
+              </div>
+              {checkin.membershipStatus && (
+                <Badge variant="outline" className="shrink-0 text-xs">
+                  {checkin.membershipStatus}
+                </Badge>
+              )}
+            </button>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }

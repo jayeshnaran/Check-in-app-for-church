@@ -404,10 +404,16 @@ export async function registerRoutes(
         pcoConnectedAt: new Date(),
       } as any);
 
-      res.redirect("/settings?pco=connected");
+      res.send(`<!DOCTYPE html><html><body><script>
+        if (window.opener) { window.opener.postMessage({ type: "pco-connected" }, window.location.origin); window.close(); }
+        else { window.location.href = "/settings?pco=connected"; }
+      </script></body></html>`);
     } catch (err) {
       console.error("PCO callback error:", err);
-      res.redirect("/settings?pco=error");
+      res.send(`<!DOCTYPE html><html><body><script>
+        if (window.opener) { window.opener.postMessage({ type: "pco-error" }, window.location.origin); window.close(); }
+        else { window.location.href = "/settings?pco=error"; }
+      </script></body></html>`);
     }
   });
 

@@ -516,7 +516,25 @@ export default function Settings() {
                   </p>
                   <Button
                     className="w-full rounded-xl"
-                    onClick={() => { window.location.href = "/auth/pco"; }}
+                    onClick={() => {
+                      const popup = window.open("/auth/pco", "pco_auth", "width=600,height=700");
+                      if (!popup) {
+                        window.location.href = "/auth/pco";
+                        return;
+                      }
+                      const handleMessage = (event: MessageEvent) => {
+                        if (event.origin !== window.location.origin) return;
+                        if (event.data?.type === "pco-connected") {
+                          queryClient.invalidateQueries({ queryKey: ["/api/pco/status"] });
+                          queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
+                          toast({ title: "Connected", description: "Planning Center connected successfully" });
+                        } else if (event.data?.type === "pco-error") {
+                          toast({ title: "Error", description: "Failed to connect to Planning Center", variant: "destructive" });
+                        }
+                        window.removeEventListener("message", handleMessage);
+                      };
+                      window.addEventListener("message", handleMessage);
+                    }}
                     data-testid="button-connect-pco"
                   >
                     <Link2 className="w-4 h-4 mr-2" />

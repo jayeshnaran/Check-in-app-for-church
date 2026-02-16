@@ -18,6 +18,26 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pcoResult = params.get("pco");
+    const reason = params.get("reason");
+    if (pcoResult === "connected") {
+      queryClient.invalidateQueries({ queryKey: ["/api/pco/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
+      toast({ title: "Connected", description: "Planning Center connected successfully." });
+    } else if (pcoResult === "error") {
+      toast({
+        title: "Connection failed",
+        description: reason || "Could not connect to Planning Center. Please try again.",
+        variant: "destructive",
+      });
+    }
+    if (pcoResult) {
+      window.history.replaceState({}, "", "/settings");
+    }
+  }, []);
   const [offlineMode, setOfflineMode] = useState(localStorage.getItem("offline_mode") === "true");
   const [serviceTimes, setServiceTimes] = useState<string[]>(JSON.parse(localStorage.getItem("service_times") || '["09:30"]'));
   const [newTime, setNewTime] = useState("");
@@ -111,6 +131,9 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ["/api/pco/status"] });
       toast({ title: "Disconnected", description: "Planning Center has been disconnected." });
     },
+    onError: () => {
+      toast({ title: "Disconnect failed", description: "Could not disconnect Planning Center. Please try again.", variant: "destructive" });
+    },
   });
 
   const testPco = useMutation({
@@ -122,8 +145,11 @@ export default function Settings() {
       if (data.connected) {
         toast({ title: "Connection OK", description: "Planning Center is working correctly." });
       } else {
-        toast({ title: "Connection Failed", description: "Could not reach Planning Center. Try reconnecting.", variant: "destructive" });
+        toast({ title: "Connection failed", description: "Could not reach Planning Center. Try disconnecting and reconnecting.", variant: "destructive" });
       }
+    },
+    onError: () => {
+      toast({ title: "Test failed", description: "Could not test the connection. Check your internet and try again.", variant: "destructive" });
     },
   });
 
@@ -156,6 +182,9 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
       toast({ title: "Updated", description: "Church info has been saved." });
     },
+    onError: () => {
+      toast({ title: "Save failed", description: "Could not save church info. Please try again.", variant: "destructive" });
+    },
   });
 
   const savePcoFields = useMutation({
@@ -171,6 +200,9 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
       toast({ title: "Saved", description: "PCO settings have been updated." });
+    },
+    onError: () => {
+      toast({ title: "Save failed", description: "Could not save PCO settings. Please try again.", variant: "destructive" });
     },
   });
 
@@ -527,9 +559,13 @@ export default function Settings() {
                         if (event.data?.type === "pco-connected") {
                           queryClient.invalidateQueries({ queryKey: ["/api/pco/status"] });
                           queryClient.invalidateQueries({ queryKey: ["/api/membership"] });
-                          toast({ title: "Connected", description: "Planning Center connected successfully" });
+                          toast({ title: "Connected", description: "Planning Center connected successfully." });
                         } else if (event.data?.type === "pco-error") {
-                          toast({ title: "Error", description: "Failed to connect to Planning Center", variant: "destructive" });
+                          toast({
+                            title: "Connection failed",
+                            description: event.data?.reason || "Could not connect to Planning Center. Please try again.",
+                            variant: "destructive",
+                          });
                         }
                         window.removeEventListener("message", handleMessage);
                       };

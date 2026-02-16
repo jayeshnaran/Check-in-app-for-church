@@ -371,18 +371,34 @@ export async function registerRoutes(
     res.redirect(url);
   });
 
+  function sendPcoResult(res: any, type: string, reason?: string) {
+    const payload = JSON.stringify({ type, reason: reason || null });
+    const query = reason ? `pco=${type === "pco-connected" ? "connected" : "error"}&reason=${encodeURIComponent(reason)}` : `pco=${type === "pco-connected" ? "connected" : "error"}`;
+    res.send(`<!DOCTYPE html><html><body><script>
+      if (window.opener) { window.opener.postMessage(${payload}, window.location.origin); window.close(); }
+      else { window.location.href = "/settings?${query}"; }
+    </script></body></html>`);
+  }
+
   app.get('/auth/pco/callback', async (req: any, res) => {
-    const { code, state } = req.query;
-    console.log("PCO callback received - code:", !!code, "state:", !!state);
+    const { code, state, error: oauthError } = req.query;
+    console.log("PCO callback received - code:", !!code, "state:", !!state, "error:", oauthError);
+
+    if (oauthError) {
+      console.error("PCO callback: OAuth error from PCO:", oauthError);
+      return sendPcoResult(res, "pco-error", oauthError === "access_denied"
+        ? "You declined the connection request. You can try again whenever you're ready."
+        : `Planning Center returned an error: ${oauthError}`);
+    }
 
     if (!state || typeof state !== "string") {
-      return res.redirect("/settings?pco=error");
+      return sendPcoResult(res, "pco-error", "The connection request was invalid. Please try connecting again.");
     }
 
     const pending = pcoOAuthPending.get(state);
     if (!pending) {
       console.error("PCO callback: no pending OAuth state found for:", state);
-      return res.redirect("/settings?pco=error");
+      return sendPcoResult(res, "pco-error", "The connection request expired. Please try connecting again.");
     }
 
     pcoOAuthPending.delete(state);
@@ -390,10 +406,14 @@ export async function registerRoutes(
     const { churchId, userId } = pending;
     console.log("PCO callback: matched state for churchId:", churchId, "userId:", userId);
 
+    if (!code) {
+      return sendPcoResult(res, "pco-error", "No authorization code received from Planning Center. Please try connecting again.");
+    }
+
     try {
       const tokens = await exchangeCodeForTokens(code as string);
       if (!tokens) {
-        return res.redirect("/settings?pco=error");
+        return sendPcoResult(res, "pco-error", "Could not exchange credentials with Planning Center. Please try connecting again.");
       }
 
       await storage.updateChurch(churchId, {
@@ -404,16 +424,10 @@ export async function registerRoutes(
         pcoConnectedAt: new Date(),
       } as any);
 
-      res.send(`<!DOCTYPE html><html><body><script>
-        if (window.opener) { window.opener.postMessage({ type: "pco-connected" }, window.location.origin); window.close(); }
-        else { window.location.href = "/settings?pco=connected"; }
-      </script></body></html>`);
-    } catch (err) {
+      sendPcoResult(res, "pco-connected");
+    } catch (err: any) {
       console.error("PCO callback error:", err);
-      res.send(`<!DOCTYPE html><html><body><script>
-        if (window.opener) { window.opener.postMessage({ type: "pco-error" }, window.location.origin); window.close(); }
-        else { window.location.href = "/settings?pco=error"; }
-      </script></body></html>`);
+      sendPcoResult(res, "pco-error", "Something went wrong while saving the connection. Please try connecting again.");
     }
   });
 

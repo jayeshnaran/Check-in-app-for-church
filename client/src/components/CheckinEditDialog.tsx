@@ -22,11 +22,22 @@ const AGE_BRACKETS = [
   "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90-99",
 ];
 
+function translatePcoAgeBracket(pcoValue: string): string {
+  const stripped = pcoValue.replace(/^\[|\]$/g, "");
+  const parts = stripped.split("-");
+  if (parts.length === 2) {
+    const normalized = parts.map(p => String(parseInt(p, 10))).join("-");
+    if (AGE_BRACKETS.includes(normalized)) return normalized;
+  }
+  if (AGE_BRACKETS.includes(pcoValue)) return pcoValue;
+  return "";
+}
+
 const currentYear = new Date().getFullYear();
 
 const MEMBERSHIP_CLEAR = "__clear__";
 
-const MEMBERSHIP_OPTIONS = [
+const BASE_MEMBERSHIP_OPTIONS = [
   { value: MEMBERSHIP_CLEAR, label: "Not set" },
   { value: `${currentYear} Newcomer`, label: `${currentYear} Newcomer` },
   { value: `${currentYear} Visitor`, label: `${currentYear} Visitor` },
@@ -70,9 +81,15 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
           if (person.lastName) setLastName(person.lastName);
           if (person.gender) setGender(person.gender);
           if (person.child !== null) setChild(person.child);
-          if (person.ageBracket) setAgeBracket(person.ageBracket);
-          if (person.membershipStatus) setMembershipStatus(person.membershipStatus);
-          else setMembershipStatus(MEMBERSHIP_CLEAR);
+          if (person.ageBracket) {
+            const translated = translatePcoAgeBracket(person.ageBracket);
+            if (translated) setAgeBracket(translated);
+          }
+          if (person.membershipStatus) {
+            setMembershipStatus(person.membershipStatus!);
+          } else {
+            setMembershipStatus(MEMBERSHIP_CLEAR);
+          }
           setPcoFetched(true);
         })
         .catch(() => {
@@ -186,7 +203,13 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {MEMBERSHIP_OPTIONS.map((opt) => (
+                  {membershipStatus && membershipStatus !== MEMBERSHIP_CLEAR &&
+                    !BASE_MEMBERSHIP_OPTIONS.some(o => o.value === membershipStatus) && (
+                    <SelectItem value={membershipStatus}>
+                      {membershipStatus} (from PCO)
+                    </SelectItem>
+                  )}
+                  {BASE_MEMBERSHIP_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>

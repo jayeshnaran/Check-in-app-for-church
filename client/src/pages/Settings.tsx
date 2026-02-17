@@ -39,6 +39,7 @@ export default function Settings() {
     }
   }, []);
   const [offlineMode, setOfflineMode] = useState(localStorage.getItem("offline_mode") === "true");
+  const [dateFormat, setDateFormat] = useState<"DD/MM" | "MM/DD">((localStorage.getItem("date_format") as "DD/MM" | "MM/DD") || "MM/DD");
   const [serviceTimes, setServiceTimes] = useState<string[]>(JSON.parse(localStorage.getItem("service_times") || '["09:30"]'));
   const [newTime, setNewTime] = useState("");
 
@@ -208,6 +209,7 @@ export default function Settings() {
 
   const handleSave = () => {
     localStorage.setItem("offline_mode", offlineMode.toString());
+    localStorage.setItem("date_format", dateFormat);
     localStorage.setItem("service_times", JSON.stringify(serviceTimes));
     toast({
       title: "Settings Saved",
@@ -628,6 +630,20 @@ export default function Settings() {
             <CardTitle className="text-lg">Preferences</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-muted/30">
+              <div className="space-y-0.5">
+                <Label>Date Format</Label>
+                <p className="text-xs text-muted-foreground">{dateFormat === "DD/MM" ? "Day/Month (e.g. 25/12)" : "Month/Day (e.g. 12/25)"}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDateFormat(dateFormat === "DD/MM" ? "MM/DD" : "DD/MM")}
+                data-testid="button-toggle-date-format"
+              >
+                {dateFormat}
+              </Button>
+            </div>
             <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-muted/30">
               <div className="space-y-0.5">
                 <Label>Offline Mode</Label>

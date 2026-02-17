@@ -40,6 +40,13 @@ function formatDateStr(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
 
+function formatSessionDate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return dateStr;
+  const [, mm, dd] = dateStr.split('-');
+  const dateFormat = localStorage.getItem("date_format") || "MM/DD";
+  return dateFormat === "DD/MM" ? `${dd}/${mm}` : `${mm}/${dd}`;
+}
+
 function getPrevSunday(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() - 7);
@@ -90,7 +97,7 @@ export default function Dashboard() {
                     data-testid="input-sunday-date"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(selectedDate, "EEEE, MMM d, yyyy")}
+                    {format(selectedDate, localStorage.getItem("date_format") === "DD/MM" ? "EEEE, d MMM yyyy" : "EEEE, MMM d, yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -568,7 +575,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                   }}
                   data-testid="button-session-info"
                 >
-                  {session?.date.split('-').slice(1).join('/')} @ {session?.time}
+                  {formatSessionDate(session?.date || '')} @ {session?.time}
                 </Button>
                 <Button
                   variant="ghost"

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Loader2, Phone, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CheckinEditDialogProps {
@@ -51,6 +51,8 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
   const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [gender, setGender] = useState<string>("M");
   const [child, setChild] = useState(false);
   const [ageBracket, setAgeBracket] = useState("");
@@ -63,6 +65,8 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
 
     setFirstName(checkin.firstName || "");
     setLastName(checkin.lastName || "");
+    setPhone(checkin.phone || "");
+    setEmail(checkin.email || "");
     setGender(checkin.gender || "");
     setChild(checkin.child || false);
     setAgeBracket(checkin.ageBracket || "");
@@ -76,9 +80,11 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
           if (!res.ok) throw new Error("Failed to fetch");
           return res.json();
         })
-        .then((person: { firstName: string | null; lastName: string | null; gender: string | null; child: boolean | null; ageBracket: string | null; membershipStatus: string | null }) => {
+        .then((person: { firstName: string | null; lastName: string | null; gender: string | null; child: boolean | null; ageBracket: string | null; membershipStatus: string | null; phone: string | null; email: string | null }) => {
           if (person.firstName) setFirstName(person.firstName);
           if (person.lastName) setLastName(person.lastName);
+          if (person.phone) setPhone(person.phone);
+          if (person.email) setEmail(person.email);
           if (person.gender) setGender(person.gender);
           if (person.child !== null) setChild(person.child);
           if (person.ageBracket) {
@@ -108,6 +114,8 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
     const updates: Record<string, any> = {
       firstName: firstName || null,
       lastName: lastName || null,
+      phone: phone || null,
+      email: email || null,
       child,
       ageBracket: ageBracket || null,
       membershipStatus: resolvedStatus,
@@ -152,6 +160,38 @@ export function CheckinEditDialog({ checkin, isOpen, onClose, onSave, isSaving }
                 placeholder="e.g. Doe"
                 data-testid="input-checkin-lastname"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ci-phone">Phone</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="ci-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 0412 345 678"
+                  className="pl-9"
+                  data-testid="input-checkin-phone"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ci-email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="ci-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. john@example.com"
+                  className="pl-9"
+                  data-testid="input-checkin-email"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-2 rounded-lg border p-3 shadow-sm">

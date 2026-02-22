@@ -642,12 +642,14 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Planning Center not connected" });
     }
 
-    const { firstName, lastName, gender, child, ageBracket, membershipStatus } = req.body;
+    const { firstName, lastName, phone, email, gender, child, ageBracket, membershipStatus } = req.body;
 
     // Update local cache
     const localUpdates: any = {};
     if (firstName !== undefined) localUpdates.firstName = firstName;
     if (lastName !== undefined) localUpdates.lastName = lastName;
+    if (phone !== undefined) localUpdates.phone = phone;
+    if (email !== undefined) localUpdates.email = email;
     if (gender !== undefined) localUpdates.gender = gender;
     if (child !== undefined) localUpdates.child = child;
     if (ageBracket !== undefined) localUpdates.ageBracket = ageBracket;
@@ -667,12 +669,24 @@ export async function registerRoutes(
     }
 
     // Update custom fields in PCO People
-    const { updateFieldDatum: updateFD } = await import("./pco");
+    const { updateFieldDatum: updateFD, getValidToken } = await import("./pco");
     if (ageBracket !== undefined && church.pcoFieldAgeBracket) {
       await updateFD(church, checkin.pcoPersonId, church.pcoFieldAgeBracket, ageBracket || "");
     }
     if (membershipStatus !== undefined && church.pcoFieldMembershipStatus) {
       await updateFD(church, checkin.pcoPersonId, church.pcoFieldMembershipStatus, membershipStatus || "");
+    }
+
+    // Push email and phone to PCO
+    const token = await getValidToken(church);
+    if (token) {
+      const { createOrUpdatePcoEmail, createOrUpdatePcoPhone } = await import("./pco");
+      if (email) {
+        await createOrUpdatePcoEmail(token, checkin.pcoPersonId, email);
+      }
+      if (phone) {
+        await createOrUpdatePcoPhone(token, checkin.pcoPersonId, phone);
+      }
     }
 
     res.json(updated);

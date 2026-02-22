@@ -137,6 +137,82 @@ export async function getValidToken(church: Church): Promise<string | null> {
   return refreshTokenIfNeeded(church);
 }
 
+export async function createOrUpdatePcoEmail(
+  token: string,
+  pcoPersonId: string,
+  email: string
+): Promise<boolean> {
+  const listRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/emails`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (listRes.ok) {
+    const listData = await listRes.json();
+    const existing = (listData.data || []).find((e: any) => e.attributes.address === email);
+    if (existing) return true;
+
+    const primary = (listData.data || []).find((e: any) => e.attributes.primary);
+    if (primary) {
+      const patchRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/emails/${primary.id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ data: { type: "Email", id: primary.id, attributes: { address: email } } }),
+      });
+      if (patchRes.ok) return true;
+    }
+  }
+
+  const res = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/emails`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ data: { type: "Email", attributes: { address: email, location: "Home", primary: true } } }),
+  });
+
+  if (!res.ok) {
+    console.error(`PCO create email for person ${pcoPersonId} failed:`, await res.text());
+    return false;
+  }
+  return true;
+}
+
+export async function createOrUpdatePcoPhone(
+  token: string,
+  pcoPersonId: string,
+  number: string
+): Promise<boolean> {
+  const listRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/phone_numbers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (listRes.ok) {
+    const listData = await listRes.json();
+    const existing = (listData.data || []).find((p: any) => p.attributes.number === number);
+    if (existing) return true;
+
+    const primary = (listData.data || []).find((p: any) => p.attributes.primary);
+    if (primary) {
+      const patchRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/phone_numbers/${primary.id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ data: { type: "PhoneNumber", id: primary.id, attributes: { number } } }),
+      });
+      if (patchRes.ok) return true;
+    }
+  }
+
+  const res = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/phone_numbers`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ data: { type: "PhoneNumber", attributes: { number, location: "Mobile", primary: true } } }),
+  });
+
+  if (!res.ok) {
+    console.error(`PCO create phone for person ${pcoPersonId} failed:`, await res.text());
+    return false;
+  }
+  return true;
+}
+
 export async function createPersonInPco(
   church: Church,
   person: {
@@ -144,6 +220,8 @@ export async function createPersonInPco(
     lastName?: string | null;
     type: string;
     ageBracket?: string | null;
+    phone?: string | null;
+    email?: string | null;
   },
   familyStatus?: string | null
 ): Promise<{ id: string; firstName: string; lastName: string } | null> {
@@ -192,6 +270,14 @@ export async function createPersonInPco(
 
   if (person.ageBracket && church.pcoFieldAgeBracket) {
     await setFieldDatum(token, pcoPersonId, church.pcoFieldAgeBracket, person.ageBracket);
+  }
+
+  if (person.email) {
+    await createOrUpdatePcoEmail(token, pcoPersonId, person.email);
+  }
+
+  if (person.phone) {
+    await createOrUpdatePcoPhone(token, pcoPersonId, person.phone);
   }
 
   return {
@@ -336,6 +422,8 @@ interface PcoPushPerson {
   type: string;
   ageBracket?: string | null;
   status?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
 
 export async function pushFamilyToPco(
@@ -505,6 +593,8 @@ export async function fetchPersonFromPco(
   child: boolean | null;
   ageBracket: string | null;
   membershipStatus: string | null;
+  phone: string | null;
+  email: string | null;
 } | null> {
   const token = await getValidToken(church);
   if (!token) return null;
@@ -528,6 +618,8 @@ export async function fetchPersonFromPco(
     child: boolean | null;
     ageBracket: string | null;
     membershipStatus: string | null;
+    phone: string | null;
+    email: string | null;
   } = {
     firstName: attrs.first_name || null,
     lastName: attrs.last_name || null,
@@ -535,11 +627,21 @@ export async function fetchPersonFromPco(
     child: typeof attrs.child === "boolean" ? attrs.child : null,
     ageBracket: null,
     membershipStatus: null,
+    phone: null,
+    email: null,
   };
 
-  const fieldRes = await fetch(`${PCO_API_BASE}/people/${pcoPersonId}/field_data`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const [fieldRes, emailsRes, phonesRes] = await Promise.all([
+    fetch(`${PCO_API_BASE}/people/${pcoPersonId}/field_data`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    fetch(`${PCO_API_BASE}/people/${pcoPersonId}/emails`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    fetch(`${PCO_API_BASE}/people/${pcoPersonId}/phone_numbers`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  ]);
 
   if (fieldRes.ok) {
     const fieldData = await fieldRes.json();
@@ -552,6 +654,22 @@ export async function fetchPersonFromPco(
       if (church.pcoFieldMembershipStatus && fdRel.id === church.pcoFieldMembershipStatus) {
         result.membershipStatus = datum.attributes.value || null;
       }
+    }
+  }
+
+  if (emailsRes.ok) {
+    const emailData = await emailsRes.json();
+    const primary = (emailData.data || []).find((e: any) => e.attributes.primary) || (emailData.data || [])[0];
+    if (primary) {
+      result.email = primary.attributes.address || null;
+    }
+  }
+
+  if (phonesRes.ok) {
+    const phoneData = await phonesRes.json();
+    const primary = (phoneData.data || []).find((p: any) => p.attributes.primary) || (phoneData.data || [])[0];
+    if (primary) {
+      result.phone = primary.attributes.number || null;
     }
   }
 

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Phone, Mail } from "lucide-react";
 
 interface EditPersonDialogProps {
   person: Person | null;
@@ -18,6 +19,8 @@ interface EditPersonDialogProps {
 export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: EditPersonDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [ageBracket, setAgeBracket] = useState("");
   const [status, setStatus] = useState<"newcomer" | "visitor">("newcomer");
 
@@ -25,6 +28,8 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
     if (person) {
       setFirstName(person.firstName || "");
       setLastName(person.lastName || "");
+      setPhone(person.phone || "");
+      setEmail(person.email || "");
       setAgeBracket(person.ageBracket || "");
       setStatus((person.status as any) || "newcomer");
     }
@@ -49,6 +54,8 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
     onSave(person.id, {
       firstName: firstName || null,
       lastName: lastName || null,
+      phone: phone || null,
+      email: email || null,
       ageBracket: ageBracket || null,
       status,
       type: newType,
@@ -70,6 +77,7 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
               value={firstName} 
               onChange={(e) => setFirstName(e.target.value)} 
               placeholder="e.g. John"
+              data-testid="input-edit-firstname"
             />
           </div>
           
@@ -80,17 +88,46 @@ export function EditPersonDialog({ person, isOpen, onClose, onSave, isSaving }: 
               value={lastName} 
               onChange={(e) => setLastName(e.target.value)} 
               placeholder="e.g. Doe"
+              data-testid="input-edit-lastname"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                id="phone" 
+                type="tel"
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                placeholder="e.g. 0412 345 678"
+                className="pl-9"
+                data-testid="input-edit-phone"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                id="email" 
+                type="email"
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                placeholder="e.g. john@example.com"
+                className="pl-9"
+                data-testid="input-edit-email"
+              />
+            </div>
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="ageBracket">Age Bracket</Label>
             <Select value={ageBracket} onValueChange={(val) => {
               setAgeBracket(val);
-              // Auto-switch person type based on age
-              const childBrackets = ["0-3", "4-7", "8-11", "12-17"];
-              const isChildBracket = childBrackets.includes(val);
-              // We'll pass this hint to the onSave or handle it in the person type selection
             }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select age bracket" />

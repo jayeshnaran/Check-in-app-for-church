@@ -475,7 +475,7 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
   const handleExportCSV = () => {
     if (!families) return;
     
-    let csvContent = "Family,Status,First Name,Last Name,Type,Age Bracket\n";
+    let csvContent = "Family,Status,First Name,Last Name,Phone,Email,Type,Age Bracket\n";
     
     families.forEach(family => {
       family.people.forEach(person => {
@@ -484,6 +484,8 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
           family.status || "newcomer",
           person.firstName || "",
           person.lastName || "",
+          person.phone || "",
+          person.email || "",
           person.type,
           person.ageBracket || ""
         ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",");
@@ -787,7 +789,12 @@ function DashboardContent({ session, setSession }: { session: { date: string, ti
                               const newStatus = checked ? 'visitor' : 'newcomer';
                               updateFamily.mutate({ id: family.id, status: newStatus });
                             }}
-                            className="scale-75"
+                            className={cn(
+                              "scale-75",
+                              family.status === 'visitor'
+                                ? "data-[state=checked]:bg-orange-500"
+                                : "data-[state=unchecked]:bg-green-500"
+                            )}
                           />
                           <Button
                             variant="ghost"

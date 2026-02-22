@@ -337,7 +337,7 @@ export async function registerRoutes(
     });
   });
 
-  const pcoOAuthPending = new Map<string, { churchId: number; userId: string; createdAt: number }>();
+  const pcoOAuthPending = new Map<string, { churchId: number; userId: string; redirectUri: string; createdAt: number }>();
 
   setInterval(() => {
     const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
@@ -355,17 +355,22 @@ export async function registerRoutes(
       return res.status(403).send("Admin access required");
     }
 
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const redirectUri = `${protocol}://${host}/auth/pco/callback`;
+
     const state = generateOAuthState();
     pcoOAuthPending.set(state, {
       churchId: membership.churchId,
       userId,
+      redirectUri,
       createdAt: Date.now(),
     });
 
-    const url = getOAuthUrl(state);
+    const url = getOAuthUrl(state, redirectUri);
     if (!url) {
       pcoOAuthPending.delete(state);
-      return res.status(500).send("Planning Center is not configured. Set PCO_CLIENT_ID, PCO_CLIENT_SECRET, and PCO_REDIRECT_URI.");
+      return res.status(500).send("Planning Center is not configured. Set PCO_CLIENT_ID and PCO_CLIENT_SECRET.");
     }
 
     res.redirect(url);
@@ -411,7 +416,7 @@ export async function registerRoutes(
     }
 
     try {
-      const tokens = await exchangeCodeForTokens(code as string);
+      const tokens = await exchangeCodeForTokens(code as string, pending.redirectUri);
       if (!tokens) {
         return sendPcoResult(res, "pco-error", "Could not exchange credentials with Planning Center. Please try connecting again.");
       }

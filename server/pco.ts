@@ -9,13 +9,12 @@ const PCO_API_BASE = "https://api.planningcenteronline.com/people/v2";
 function getPcoConfig() {
   const clientId = process.env.PCO_CLIENT_ID;
   const clientSecret = process.env.PCO_CLIENT_SECRET;
-  const redirectUri = process.env.PCO_REDIRECT_URI;
 
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!clientId || !clientSecret) {
     return null;
   }
 
-  return { clientId, clientSecret, redirectUri };
+  return { clientId, clientSecret };
 }
 
 export function isPcoConfigured(): boolean {
@@ -26,14 +25,14 @@ export function generateOAuthState(): string {
   return crypto.randomBytes(16).toString("hex");
 }
 
-export function getOAuthUrl(state: string): string | null {
+export function getOAuthUrl(state: string, redirectUri: string): string | null {
   const config = getPcoConfig();
   if (!config) return null;
 
   const params = new URLSearchParams({
     response_type: "code",
     client_id: config.clientId,
-    redirect_uri: config.redirectUri,
+    redirect_uri: redirectUri,
     scope: "people check_ins",
     state,
   });
@@ -41,7 +40,7 @@ export function getOAuthUrl(state: string): string | null {
   return `${PCO_AUTH_URL}?${params}`;
 }
 
-export async function exchangeCodeForTokens(code: string): Promise<{
+export async function exchangeCodeForTokens(code: string, redirectUri: string): Promise<{
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
@@ -51,14 +50,14 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   if (!config) return null;
 
   console.log("PCO token exchange: sending request to", PCO_TOKEN_URL);
-  console.log("PCO token exchange: redirect_uri =", config.redirectUri);
+  console.log("PCO token exchange: redirect_uri =", redirectUri);
 
   const formBody = new URLSearchParams({
     grant_type: "authorization_code",
     code,
     client_id: config.clientId,
     client_secret: config.clientSecret,
-    redirect_uri: config.redirectUri,
+    redirect_uri: redirectUri,
   });
 
   const tokenRes = await fetch(PCO_TOKEN_URL, {

@@ -44,4 +44,3 @@ integrations = ["javascript_log_in_with_replit:2.0.0"]
 [userenv]
 
 [userenv.shared]
-PCO_REDIRECT_URI = "https://2aedb63a-ea19-4113-8645-2e46d4e3e7c7-00-328mdpe5edtu1.kirk.replit.dev/auth/pco/callback"
